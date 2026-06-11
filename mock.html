@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mock Instagram Reels</title>
+  <title>Mock Instagram Environment</title>
   <style>
     body {
       margin: 0;
@@ -11,30 +11,14 @@
       background-color: #000;
       color: #fff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      overflow-y: scroll;
-      scroll-snap-type: y mandatory;
       height: 100vh;
-    }
-
-    .reels-container {
-      height: 100vh;
-      overflow-y: scroll;
-      scroll-snap-type: y mandatory;
-    }
-
-    /* A mock Reel container */
-    .x17505xr {
-      height: 100vh;
-      width: 100vw;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
-      position: relative;
-      scroll-snap-align: start;
-      border-bottom: 1px solid #333;
+      justify-content: center;
     }
 
-    .video-wrapper {
+    .container {
       position: relative;
       width: 400px;
       height: 700px;
@@ -44,6 +28,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      border: 1px solid #333;
     }
 
     video {
@@ -53,19 +38,32 @@
       cursor: pointer;
     }
 
-    /* Reels right action bar */
+    .label-indicator {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      background: rgba(0,0,0,0.6);
+      padding: 4px 12px;
+      border-radius: 4px;
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    /* --- REELS LAYOUT --- */
     .action-bar-mock {
       position: absolute;
-      right: -60px;
+      right: 10px;
       bottom: 40px;
       width: 50px;
-      height: 350px;
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
       align-items: center;
       gap: 16px;
       background: transparent;
+      z-index: 100;
     }
 
     .action-bar-mock button {
@@ -76,17 +74,13 @@
       background: rgba(255, 255, 255, 0.1);
       color: white;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
 
-    /* Mute button container overlaying the video */
-    .mute-btn-container {
+    .reels-mute-container {
       position: absolute;
       top: 20px;
       right: 20px;
-      z-index: 1000;
+      z-index: 100;
     }
 
     .native-mute-btn {
@@ -100,71 +94,122 @@
       align-items: center;
       justify-content: center;
       color: white;
-      transition: background 0.2s;
     }
 
-    .native-mute-btn:hover {
-      background: rgba(0, 0, 0, 0.8);
-    }
-
-    .label-indicator {
+    /* --- STORIES LAYOUT --- */
+    .story-header {
       position: absolute;
-      bottom: 20px;
-      left: 20px;
-      font-size: 18px;
-      font-weight: bold;
-      background: rgba(0,0,0,0.5);
-      padding: 4px 12px;
-      border-radius: 4px;
-      pointer-events: none;
+      top: 15px;
+      left: 15px;
+      right: 15px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+    }
+
+    .story-user-info {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .story-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .story-btn {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* --- FEED POST LAYOUT --- */
+    .feed-post-overlay {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
   </style>
 </head>
 <body>
-  <div class="reels-container">
-    <!-- REEL 1 -->
-    <div class="x17505xr" id="reel-1">
-      <div class="video-wrapper">
-        <video src="https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-against-the-sky-42436-large.mp4" loop muted playsinline></video>
-        <div class="label-indicator">Reel 1</div>
-        <div class="mute-btn-container">
-          <button class="native-mute-btn _abl-" aria-label="Unmute">
-            <!-- Speaker SVG matching isSpeakerSVG check (path contains M3 9v6h4) -->
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path>
-            </svg>
-          </button>
-        </div>
-        <div class="action-bar-mock">
-          <button>Like</button>
-          <button>Comm</button>
-          <button>Share</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- REEL 2 -->
-    <div class="x17505xr" id="reel-2">
-      <div class="video-wrapper">
-        <video src="https://assets.mixkit.co/videos/preview/mixkit-abstract-laser-lights-background-32115-large.mp4" loop muted playsinline></video>
-        <div class="label-indicator">Reel 2</div>
-        <div class="mute-btn-container">
-          <button class="native-mute-btn _abl-" aria-label="Unmute">
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path>
-            </svg>
-          </button>
-        </div>
-        <div class="action-bar-mock">
-          <button>Like</button>
-          <button>Comm</button>
-          <button>Share</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div id="app-root"></div>
 
   <script>
+    window.__IS_MOCK_TEST__ = true;
+    const path = window.location.pathname;
+
+    let html = '';
+
+    if (path.includes('/stories/')) {
+      // Stories layout
+      html = `
+        <section class="_as3a container" id="story-container">
+          <video src="https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-against-the-sky-42436-large.mp4" loop muted playsinline></video>
+          <div class="label-indicator">Story Mode</div>
+          <div class="story-header">
+            <div class="story-user-info">test_user</div>
+            <div class="story-buttons">
+              <button class="story-btn native-mute-btn" aria-label="Unmute">
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path>
+                </svg>
+              </button>
+              <button class="story-btn" aria-label="More options">⋯</button>
+            </div>
+          </div>
+        </section>
+      `;
+    } else if (path.includes('/p/')) {
+      // Feed post layout
+      html = `
+        <article class="container" id="feed-container">
+          <video src="https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-against-the-sky-42436-large.mp4" loop muted playsinline></video>
+          <div class="label-indicator">Feed Post Mode</div>
+          <div class="feed-post-overlay">
+            <button class="native-mute-btn" aria-label="Unmute">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path>
+              </svg>
+            </button>
+          </div>
+        </article>
+      `;
+    } else {
+      // Reels layout (default)
+      html = `
+        <div class="x17505xr container" id="reel-container">
+          <video src="https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-against-the-sky-42436-large.mp4" loop muted playsinline></video>
+          <div class="label-indicator">Reels Mode</div>
+          <div class="reels-mute-container">
+            <button class="native-mute-btn" aria-label="Unmute">
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path>
+              </svg>
+            </button>
+          </div>
+          <div class="action-bar-mock">
+            <button>Like</button>
+            <button>Comm</button>
+            <button>Share</button>
+          </div>
+        </div>
+      `;
+    }
+
+    document.getElementById('app-root').innerHTML = html;
+
     // Make play, pause, and paused stateful in our mock video elements
     document.querySelectorAll('video').forEach(video => {
       let isPaused = true;
@@ -176,7 +221,6 @@
 
       video.play = () => {
         isPaused = false;
-        // Trigger standard HTML5 media 'play' and 'playing' events for content.js
         video.dispatchEvent(new Event('play'));
         video.dispatchEvent(new Event('playing'));
         return Promise.resolve();
@@ -189,10 +233,9 @@
     });
 
     // Native mute/unmute visual indicator logic
-    document.querySelectorAll('.x17505xr').forEach(reel => {
-      const video = reel.querySelector('video');
-      const muteBtn = reel.querySelector('.native-mute-btn');
-      
+    const muteBtn = document.querySelector('.native-mute-btn');
+    const video = document.querySelector('video');
+    if (muteBtn && video) {
       const updateMuteButtonState = () => {
         const isMuted = video.muted;
         muteBtn.setAttribute('aria-label', isMuted ? 'Unmute' : 'Mute');
@@ -214,7 +257,7 @@
           video.pause();
         }
       });
-    });
+    }
   </script>
 </body>
 </html>

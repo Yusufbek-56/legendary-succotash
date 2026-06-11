@@ -51,6 +51,7 @@ function injectCoreStyles() {
     .ig-volume-slider-container, 
     .ig-video-scrubber-container, 
     .ig-action-item, 
+    .ig-inline-speed-btn, 
     input[type="range"],
     video,
     form,
@@ -73,6 +74,7 @@ injectCoreStyles();
 
 // --- БЕЗОПАСНАЯ ПРОВЕРКА НА ПЕРЕЗАПУСК РАСШИРЕНИЯ ---
 function isScriptOrphaned() {
+  if (window.__IS_MOCK_TEST__) return false;
   try {
     return typeof chrome === 'undefined' || !chrome.runtime?.id;
   } catch (e) {
@@ -90,6 +92,7 @@ const activeVideos = new Set();
 let lastUserInteractionTime = 0; // Время последнего действия пользователя с громкостью
 let lastAutoSkipTime = 0; // Глобальный коулдаун автопропуска для предотвращения двойных перелистываний
 let lastGlobalPath = window.location.pathname; // Глобальный трекер SPA-переходов
+let globalScanInterval = null;
 
 // Проверяет, было ли хоть одно взаимодействие пользователя с элементами громкости.
 // Пока пользователь не кликнул по кнопке звука / не двигал слайдер / не крутил колёсико,
@@ -321,6 +324,17 @@ function restorePlayerFocus(video) {
   }
 }
 
+// --- ПРОВЕРКА НАЛИЧИЯ КНОПКИ СКОРОСТИ В DOM ---
+function hasSpeedButtonInDOM(video) {
+  // Reels: кнопка скорости в боковой панели
+  if (video._speedActionItem && video._speedActionItem.isConnected) return true;
+  // Stories: кнопка скорости в шапке
+  if (video._storySpeedBtn && video._storySpeedBtn.isConnected) return true;
+  // Feed posts: кнопка скорости рядом с мьютом
+  if (video._feedSpeedBtn && video._feedSpeedBtn.isConnected) return true;
+  return false;
+}
+
 // --- СИНХРОНИЗАЦИЯ ГРОМКОСТИ И СКОРОСТИ ---
 function syncAllVideos() {
   // Очищаем кэш от удаленных из DOM видео-элементов
@@ -353,9 +367,9 @@ function syncAllVideos() {
       }
     }
 
-    // Выставляем скорость воспроизведения: для Reels — пользовательскую, для обычных видео — строго 1x
-    const isVideoReel = checkIsReel(video);
-    const targetSpeed = isVideoReel ? globalPlaybackSpeed : 1.0;
+    // Выставляем скорость: используем пользовательскую скорость ТОЛЬКО если кнопка физически присутствует в DOM
+    const speedBtnPresent = hasSpeedButtonInDOM(video);
+    const targetSpeed = speedBtnPresent ? globalPlaybackSpeed : 1.0;
 
     const originalSetter = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate').set;
     if (originalSetter) {
@@ -364,7 +378,7 @@ function syncAllVideos() {
       video.playbackRate = targetSpeed;
     }
 
-    // Обновляем визуальное состояние регулятора скорости
+    // Обновляем визуальное состояние регулятора скорости (Reels sidebar)
     if (video._speedActionItem) {
       const label = video._speedActionItem.querySelector('.ig-speed-label');
       if (label) label.textContent = `${globalPlaybackSpeed}x`;
@@ -383,6 +397,18 @@ function syncAllVideos() {
           item.classList.remove('active');
         }
       });
+    }
+
+    // Обновляем визуальное состояние кнопки скорости в Stories
+    if (video._storySpeedBtn && video._storySpeedBtn.isConnected) {
+      video._storySpeedBtn.textContent = globalPlaybackSpeed === 1.0 ? '1x' : `${globalPlaybackSpeed}x`;
+      video._storySpeedBtn.classList.toggle('ig-speed-active', globalPlaybackSpeed !== 1.0);
+    }
+
+    // Обновляем визуальное состояние кнопки скорости в Feed posts
+    if (video._feedSpeedBtn && video._feedSpeedBtn.isConnected) {
+      video._feedSpeedBtn.textContent = globalPlaybackSpeed === 1.0 ? '1x' : `${globalPlaybackSpeed}x`;
+      video._feedSpeedBtn.classList.toggle('ig-speed-active', globalPlaybackSpeed !== 1.0);
     }
 
     // Обновляем визуальное состояние автопропуска
@@ -595,6 +621,17 @@ function setupStoryViewportClick(video) {
     const activeVideo = viewport.querySelector('video');
     if (!activeVideo) return;
 
+    // Сначала проверяем клик по кнопке скорости сторис
+    const speedBtnEl = e.target.closest('.ig-inline-speed-btn');
+    if (speedBtnEl) {
+      e.stopPropagation();
+      e.preventDefault();
+      globalPlaybackSpeed = globalPlaybackSpeed === 1.0 ? 2.0 : 1.0;
+      saveSettings();
+      syncAllVideos();
+      return;
+    }
+
     // 1. Проверяем клик по кастомным элементам громкости и скруббера
     const isControlClick = e.target.closest(
       '.ig-volume-slider-container, .ig-video-scrubber-container, .ig-action-item, input[type="range"]'
@@ -693,8 +730,9 @@ function setupVideoListeners(video) {
 
   // ГАРАНТИЯ СКОРОСТИ: Принудительный сброс/установка скорости на ключевых этапах инициализации медиа-потока.
   const enforceSpeed = () => {
-    const isVideoReel = checkIsReel(video);
-    const targetSpeed = isVideoReel ? globalPlaybackSpeed : 1.0;
+    // Скорость применяется ТОЛЬКО если кнопка физически присутствует в DOM
+    const speedBtnPresent = hasSpeedButtonInDOM(video);
+    const targetSpeed = speedBtnPresent ? globalPlaybackSpeed : 1.0;
 
     const originalSetter = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate').set;
     if (originalSetter) {
@@ -1013,9 +1051,9 @@ function enforcePlaybackRate(video) {
         return originalGetter.call(this);
       },
       set(val) {
-        // Форсируем ускорение только если видео является частью Reels, иначе разрешаем стандартную скорость
-        const isReel = checkIsReel(this);
-        if (isReel) {
+        // Форсируем ускорение ТОЛЬКО если кнопка скорости присутствует в DOM
+        const speedBtnPresent = hasSpeedButtonInDOM(this);
+        if (speedBtnPresent) {
           originalSetter.call(this, globalPlaybackSpeed);
         } else {
           originalSetter.call(this, val);
@@ -1023,10 +1061,195 @@ function enforcePlaybackRate(video) {
       }
     });
 
-    // Инициализируем стартовую скорость
-    const isReel = checkIsReel(video);
-    originalSetter.call(video, isReel ? globalPlaybackSpeed : 1.0);
+    // Инициализируем стартовую скорость: только если кнопка уже есть
+    const speedBtnPresent = hasSpeedButtonInDOM(video);
+    originalSetter.call(video, speedBtnPresent ? globalPlaybackSpeed : 1.0);
   }
+}
+
+// --- ИНЪЕКЦИЯ КНОПКИ СКОРОСТИ ДЛЯ STORIES ---
+function injectStorySpeedButton(video) {
+  if (video._hasStorySpeedBtn) return;
+  if (!checkIsStory(video)) return;
+
+  // Ищем шапку сторис: контейнер с кнопками mute/pause/more (⋯)
+  const storySection = video.closest('section, ._as3a, ._abag, [role="dialog"]');
+  if (!storySection) return;
+
+  // Ищем верхнюю панель с кнопками: обычно это div/header содержащий ряд кнопок
+  const headerButtons = storySection.querySelectorAll('button, [role="button"]');
+  if (headerButtons.length === 0) return;
+
+  // Находим последнюю кнопку в верхней части ("⋯" / more), чтобы вставить рядом
+  const videoRect = video.getBoundingClientRect();
+  let rightmostBtn = null;
+  let maxRight = -Infinity;
+
+  for (const btn of headerButtons) {
+    // Игнорируем кнопки внутри нижней панели реакций
+    if (btn.closest('._ac7v')) continue;
+    const rect = btn.getBoundingClientRect();
+    // Кнопка должна быть в верхней трети видео
+    if (rect.top < videoRect.top + videoRect.height * 0.25 && rect.width > 0 && rect.width < 60) {
+      if (rect.right > maxRight) {
+        maxRight = rect.right;
+        rightmostBtn = btn;
+      }
+    }
+  }
+
+  if (!rightmostBtn) return;
+
+  video._hasStorySpeedBtn = true;
+
+  const speedBtn = document.createElement('div');
+  speedBtn.className = 'ig-inline-speed-btn';
+  speedBtn.textContent = globalPlaybackSpeed === 1.0 ? '1x' : `${globalPlaybackSpeed}x`;
+  if (globalPlaybackSpeed !== 1.0) speedBtn.classList.add('ig-speed-active');
+  speedBtn.title = 'Toggle playback speed';
+
+  // Стиль: маленькая кнопка, вписывается в шапку
+  speedBtn.style.cssText = `
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.4);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    cursor: pointer;
+    user-select: none;
+    pointer-events: auto !important;
+    margin-left: 8px;
+    flex-shrink: 0;
+    transition: background 0.2s ease, transform 0.15s ease;
+    z-index: 10;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+    letter-spacing: -0.5px;
+  `;
+
+  // Вставляем после последней кнопки в том же контейнере
+  const btnParent = rightmostBtn.parentElement;
+  if (btnParent) {
+    rightmostBtn.insertAdjacentElement('afterend', speedBtn);
+  } else {
+    video._hasStorySpeedBtn = false;
+    return;
+  }
+
+  video._storySpeedBtn = speedBtn;
+  activeVideos.add(video);
+  enforcePlaybackRate(video);
+
+  const toggleSpeed = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    globalPlaybackSpeed = globalPlaybackSpeed === 1.0 ? 2.0 : 1.0;
+    saveSettings();
+    syncAllVideos();
+  };
+
+  speedBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); }, { capture: true });
+  speedBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); }, { capture: true });
+  speedBtn.addEventListener('click', toggleSpeed, { capture: true });
+
+  speedBtn.addEventListener('mouseenter', () => { speedBtn.style.background = 'rgba(255,255,255,0.25)'; });
+  speedBtn.addEventListener('mouseleave', () => {
+    speedBtn.style.background = speedBtn.classList.contains('ig-speed-active') ? 'rgba(0,149,246,0.6)' : 'rgba(0,0,0,0.4)';
+  });
+}
+
+// --- ИНЪЕКЦИЯ КНОПКИ СКОРОСТИ ДЛЯ FEED POSTS ---
+function injectFeedSpeedButton(video, nativeMuteBtn) {
+  if (video._hasFeedSpeedBtn) return;
+  if (checkIsReel(video) || checkIsStory(video)) return;
+
+  // Только для видео в article или dialog
+  const container = video.closest('article, [role="dialog"]');
+  if (!container) return;
+  if (!nativeMuteBtn || !nativeMuteBtn.isConnected) return;
+
+  video._hasFeedSpeedBtn = true;
+
+  const speedBtn = document.createElement('div');
+  speedBtn.className = 'ig-inline-speed-btn ig-feed-speed-btn';
+  speedBtn.textContent = globalPlaybackSpeed === 1.0 ? '1x' : `${globalPlaybackSpeed}x`;
+  if (globalPlaybackSpeed !== 1.0) speedBtn.classList.add('ig-speed-active');
+  speedBtn.title = 'Toggle playback speed';
+
+  // Стиль: маленькая кнопка рядом с мьютом
+  speedBtn.style.cssText = `
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    cursor: pointer;
+    user-select: none;
+    pointer-events: auto !important;
+    position: absolute;
+    z-index: 10;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+    transition: background 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
+    letter-spacing: -0.5px;
+    opacity: 0;
+  `;
+
+  // Позиционируем слева от кнопки мьюта
+  const muteRect = nativeMuteBtn.getBoundingClientRect();
+  const videoRect = video.getBoundingClientRect();
+
+  // Монтируем в общий предок video и muteBtn
+  const mountParent = findCommonAncestor(video, nativeMuteBtn) || video.parentElement;
+  const mountParentStyle = window.getComputedStyle(mountParent);
+  if (mountParentStyle.position === 'static') {
+    mountParent.style.position = 'relative';
+  }
+
+  mountParent.classList.add('ig-speed-parent');
+  mountParent.appendChild(speedBtn);
+
+  // Рассчитываем позицию: слева от кнопки мьюта
+  const updateFeedSpeedPos = () => {
+    if (!speedBtn.isConnected || !nativeMuteBtn.isConnected) return;
+    const mR = nativeMuteBtn.getBoundingClientRect();
+    const pR = mountParent.getBoundingClientRect();
+    speedBtn.style.bottom = `${pR.bottom - mR.bottom + (mR.height - 28) / 2}px`;
+    speedBtn.style.right = `${pR.right - mR.left + 4}px`;
+  };
+  updateFeedSpeedPos();
+  video._updateFeedSpeedPos = updateFeedSpeedPos;
+
+  video._feedSpeedBtn = speedBtn;
+  activeVideos.add(video);
+  enforcePlaybackRate(video);
+
+  const toggleSpeed = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    globalPlaybackSpeed = globalPlaybackSpeed === 1.0 ? 2.0 : 1.0;
+    saveSettings();
+    syncAllVideos();
+  };
+
+  speedBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); }, { capture: true });
+  speedBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); }, { capture: true });
+  speedBtn.addEventListener('click', toggleSpeed, { capture: true });
+
+  speedBtn.addEventListener('mouseenter', () => { speedBtn.style.background = 'rgba(255,255,255,0.25)'; });
+  speedBtn.addEventListener('mouseleave', () => {
+    speedBtn.style.background = speedBtn.classList.contains('ig-speed-active') ? 'rgba(0,149,246,0.6)' : 'rgba(0,0,0,0.5)';
+  });
 }
 
 // --- ИНЪЕКЦИЯ РЕГУЛЯТОРА СКОРОСТИ И АВТОСКИПА ---
@@ -1034,8 +1257,8 @@ function injectExtraControls(video, cachedActionBar) {
   const isReel = checkIsReel(video);
 
   if (!isReel) {
-    // Если это не Reels — сбрасываем скорость на 1x и выходим
-    if (video.playbackRate !== 1.0) {
+    // Если это не Reels — сбрасываем скорость на 1x только если нет нашей кнопки
+    if (!hasSpeedButtonInDOM(video) && video.playbackRate !== 1.0) {
       video.playbackRate = 1.0;
     }
     return;
@@ -1191,7 +1414,6 @@ function injectExtraControls(video, cachedActionBar) {
   // Блокируем лишние срабатывания от mousedown и pointerdown, оставляя только чистый click
   const blockIGInterference = (e) => {
     e.stopPropagation();
-    e.preventDefault();
   };
 
   autoskipBtn.addEventListener('mousedown', blockIGInterference, { capture: true });
@@ -1406,9 +1628,14 @@ function clearOverlayInterference(video) {
         const style = window.getComputedStyle(sibling);
         const isAbsoluteOrFixed = style.position === 'absolute' || style.position === 'fixed';
 
+        const nativeMute = video._nativeMuteBtn || findNativeMuteButton(video);
         const isCustomElement = sibling.classList.contains('ig-volume-slider-container') ||
           sibling.classList.contains('ig-video-scrubber-container') ||
-          sibling.querySelector('.ig-volume-slider-container, .ig-video-scrubber-container');
+          sibling.classList.contains('ig-inline-speed-btn') ||
+          sibling.classList.contains('ig-feed-speed-btn') ||
+          sibling.classList.contains('ig-action-item') ||
+          sibling.querySelector('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-inline-speed-btn, .ig-feed-speed-btn, .ig-action-item') ||
+          (nativeMute && (sibling === nativeMute || sibling.contains(nativeMute)));
 
         // Если элемент абсолютный, не кастомный И стиль pointer-events еще НЕ равен 'none'
         if (isAbsoluteOrFixed && !isCustomElement && style.pointerEvents !== 'none') {
@@ -1527,9 +1754,19 @@ function scanAndInject() {
         video._floatingControlsContainer.remove();
         video._floatingControlsContainer = null;
       }
+      if (video._storySpeedBtn) {
+        video._storySpeedBtn.remove();
+        video._storySpeedBtn = null;
+      }
+      if (video._feedSpeedBtn) {
+        video._feedSpeedBtn.remove();
+        video._feedSpeedBtn = null;
+      }
 
       video._hasScrubber = false;
       video._hasExtraControls = false;
+      video._hasStorySpeedBtn = false;
+      video._hasFeedSpeedBtn = false;
 
       // Отписываемся от старых слушателей Reels-панели во избежание их утечки на Homepage
       if (video._oldHandleVideoEnded) {
@@ -1578,7 +1815,7 @@ function scanAndInject() {
         const isControlClick =
           (nativeBtn && nativeBtn.parentElement && nativeBtn.parentElement.contains(e.target)) ||
           (actionBar && actionBar.contains(e.target)) ||
-          e.target.closest('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-action-item, input[type="range"]');
+          e.target.closest('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-action-item, .ig-inline-speed-btn, input[type="range"]');
 
         if (isControlClick) return;
 
@@ -1684,9 +1921,37 @@ function scanAndInject() {
       injectExtraControls(video, actionBar); // Передаем кэшированный action bar
     }
 
-    // Если это не Reels — полностью удаляем интерцептор скорости и сбрасываем её на 1.0
+    // --- ИНЪЕКЦИЯ КНОПКИ СКОРОСТИ ДЛЯ STORIES ---
+    if (checkIsStory(video)) {
+      // Проверяем валидность существующей кнопки
+      if (video._storySpeedBtn && !video._storySpeedBtn.isConnected) {
+        video._storySpeedBtn = null;
+        video._hasStorySpeedBtn = false;
+      }
+      if (!video._hasStorySpeedBtn) {
+        injectStorySpeedButton(video);
+      }
+    }
+
+    // --- ИНЪЕКЦИЯ КНОПКИ СКОРОСТИ ДЛЯ FEED POSTS ---
+    const isFeedPost = !checkIsReel(video) && !checkIsStory(video) && (video.closest('article') || video.closest('[role="dialog"]'));
+    if (isFeedPost && currentBtn) {
+      // Проверяем валидность существующей кнопки
+      if (video._feedSpeedBtn && !video._feedSpeedBtn.isConnected) {
+        video._feedSpeedBtn = null;
+        video._hasFeedSpeedBtn = false;
+      }
+      if (!video._hasFeedSpeedBtn) {
+        injectFeedSpeedButton(video, currentBtn);
+      } else if (video._updateFeedSpeedPos) {
+        // Обновляем позицию при каждом сканировании
+        video._updateFeedSpeedPos();
+      }
+    }
+
+    // Если нет кнопки скорости — удаляем интерцептор и сбрасываем на 1.0
     const isReel = checkIsReel(video);
-    if (!isReel) {
+    if (!isReel && !hasSpeedButtonInDOM(video)) {
       if (video.hasOwnProperty('playbackRate') || 'playbackRate' in video) {
         delete video.playbackRate;
       }
@@ -1749,7 +2014,7 @@ window.addEventListener('popstate', triggerScan, { passive: true });
 
 // Однократный запуск и установка одного интервала сканирования
 scanAndInject();
-const globalScanInterval = setInterval(triggerScan, 300);
+globalScanInterval = setInterval(triggerScan, 300);
 
 // --- ГЛОБАЛЬНЫЙ СЛУШАТЕЛЬ КЛАВИШ ---
 document.addEventListener('keydown', (e) => {

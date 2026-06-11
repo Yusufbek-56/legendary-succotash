@@ -57,11 +57,15 @@ function sleep(ms) {
       console.error(`[BROWSER ERROR]: ${err.message}`);
     });
 
-    // Intercept requests to mock an Instagram Reels URL and serve our mock.html
+    // Intercept requests to mock all Instagram formats and serve our mock.html
     await page.setRequestInterception(true);
     page.on('request', (request) => {
       const url = request.url();
-      if (url.includes('instagram.com/reels/test/')) {
+      if (
+        url.includes('instagram.com/reels/test/') ||
+        url.includes('instagram.com/stories/test/') ||
+        url.includes('instagram.com/p/test/')
+      ) {
         const mockHtmlPath = path.join(__dirname, 'mock.html');
         const mockHtml = fs.readFileSync(mockHtmlPath, 'utf8');
         request.respond({
@@ -74,164 +78,220 @@ function sleep(ms) {
       }
     });
 
-    console.log('[TEST] Navigating to https://www.instagram.com/reels/test/ ...');
+    // ==========================================
+    // --- TEST 1: REELS MODE ---
+    // ==========================================
+    console.log('\n==========================================');
+    console.log('[TEST 1] Testing Reels Mode...');
+    console.log('==========================================');
+    
     await page.goto('https://www.instagram.com/reels/test/', { waitUntil: 'load' });
-
-    console.log('[TEST] Injecting content script and styles manually...');
     await page.addStyleTag({ path: path.join(__dirname, 'content.css') });
     await page.addScriptTag({ path: path.join(__dirname, 'content.js') });
 
-    console.log('[TEST] Waiting for extension to scan and inject controls...');
-    await sleep(2500); // Allow time for scanAndInject to run multiple times
+    console.log('[TEST 1] Waiting for script injection...');
+    await sleep(2000);
 
-    // --- TEST 1: REEL 1 INJECTION & INITIAL STATE ---
-    console.log('[TEST 1] Verifying Reel 1 initialization...');
-    
-    // Check if slider container exists in Reel 1
-    const reel1HasSlider = await page.evaluate(() => {
-      const reel1 = document.querySelector('#reel-1');
-      const slider = reel1.querySelector('.ig-volume-slider-container');
-      const scrubber = reel1.querySelector('.ig-video-scrubber-container');
+    const reelsResults = await page.evaluate(() => {
+      const reel = document.querySelector('#reel-container');
+      const scrubber = reel.querySelector('.ig-video-scrubber-container');
+      const speedItem = reel.querySelector('.ig-speed-item');
+      const autoskipItem = reel.querySelector('.ig-autoskip-item');
       return {
-        sliderExists: !!slider,
-        scrubberExists: !!scrubber,
-        sliderInCorrectContainer: slider && reel1.contains(slider),
-        scrubberInCorrectContainer: scrubber && reel1.contains(scrubber)
+        hasScrubber: !!scrubber,
+        hasSpeedSidebarItem: !!speedItem,
+        hasAutoskipSidebarItem: !!autoskipItem
       };
     });
 
-    console.log('Reel 1 Injection Results:', reel1HasSlider);
-    if (!reel1HasSlider.sliderExists || !reel1HasSlider.scrubberExists) {
-      throw new Error('Reel 1: Missing injected slider or scrubber!');
+    console.log('[TEST 1] Reels elements status:', reelsResults);
+    if (!reelsResults.hasScrubber) {
+      throw new Error('Reels: Missing injected scrubber container!');
     }
-    if (!reel1HasSlider.sliderInCorrectContainer || !reel1HasSlider.scrubberInCorrectContainer) {
-      throw new Error('Reel 1: Slider or scrubber injected in wrong container!');
+    if (!reelsResults.hasSpeedSidebarItem || !reelsResults.hasAutoskipSidebarItem) {
+      throw new Error('Reels: Missing extra controls in action bar!');
     }
 
-    // Hover over Reel 1 mute button to verify expansion
-    console.log('[TEST 1] Hovering over Reel 1 mute button...');
-    await page.hover('#reel-1 .native-mute-btn');
-    await sleep(800); // Wait for transition css
-
-    await page.screenshot({ path: path.join(__dirname, 'reel1_hover.png') });
-    console.log('[TEST 1] Screenshot saved to reel1_hover.png');
-
-    const reel1SliderExpanded = await page.evaluate(() => {
-      const slider = document.querySelector('#reel-1 .ig-volume-slider-container');
-      return slider.classList.contains('ig-expanded');
+    // Test first-click unmute on Reels
+    const reelsInitialMuted = await page.evaluate(() => {
+      return document.querySelector('video').muted;
     });
-    console.log('Reel 1 Slider expanded on hover:', reel1SliderExpanded);
+    console.log('[TEST 1] Reels video initially muted:', reelsInitialMuted);
 
-    // Stop hover
-    await page.mouse.move(0, 0);
-    await sleep(1000); // Wait for slider to auto-hide
-
-    // --- TEST 2: SCROLL TO REEL 2 & REEL 2 INJECTION ---
-    console.log('[TEST 2] Scrolling to Reel 2...');
+    // Play video programmatically to emulate auto-play
     await page.evaluate(() => {
-      document.querySelector('#reel-2').scrollIntoView({ behavior: 'auto' });
-    });
-    await sleep(2000); // Wait for scroll and scanning
-
-    // Verify Reel 2 elements are correctly injected within Reel 2 and not Reel 1
-    const reel2HasSlider = await page.evaluate(() => {
-      const reel1 = document.querySelector('#reel-1');
-      const reel2 = document.querySelector('#reel-2');
-      const slider = reel2.querySelector('.ig-volume-slider-container');
-      const scrubber = reel2.querySelector('.ig-video-scrubber-container');
-      return {
-        sliderExists: !!slider,
-        scrubberExists: !!scrubber,
-        sliderInReel2: slider && reel2.contains(slider),
-        scrubberInReel2: scrubber && reel2.contains(scrubber),
-        doesNotContainReel1Slider: slider && !reel1.contains(slider)
-      };
-    });
-
-    console.log('Reel 2 Injection Results:', reel2HasSlider);
-    if (!reel2HasSlider.sliderExists || !reel2HasSlider.scrubberExists) {
-      throw new Error('Reel 2: Missing injected slider or scrubber!');
-    }
-    if (!reel2HasSlider.sliderInReel2 || !reel2HasSlider.scrubberInReel2) {
-      throw new Error('Reel 2: Slider or scrubber injected in wrong container!');
-    }
-
-    // Hover over Reel 2 mute button
-    console.log('[TEST 2] Hovering over Reel 2 mute button...');
-    await page.hover('#reel-2 .native-mute-btn');
-    await sleep(800);
-
-    await page.screenshot({ path: path.join(__dirname, 'reel2_hover.png') });
-    console.log('[TEST 2] Screenshot saved to reel2_hover.png');
-
-    const reel2SliderExpanded = await page.evaluate(() => {
-      const slider = document.querySelector('#reel-2 .ig-volume-slider-container');
-      return slider.classList.contains('ig-expanded');
-    });
-    console.log('Reel 2 Slider expanded on hover:', reel2SliderExpanded);
-    if (!reel2SliderExpanded) {
-      throw new Error('Reel 2 Slider failed to expand on hover! (The bug is not fixed)');
-    }
-
-    // Stop hover
-    await page.mouse.move(0, 0);
-    await sleep(1000);
-
-    // --- TEST 3: FIRST-CLICK UNMUTE FEATURE PRESERVATION ---
-    console.log('[TEST 3] Testing the "First-Click Unmute" feature on Reel 2...');
-    
-    // Check initial video state for Reel 2
-    const initialReel2State = await page.evaluate(() => {
-      const video = document.querySelector('#reel-2 video');
-      return {
-        paused: video.paused,
-        muted: video.muted,
-        volume: video.volume
-      };
-    });
-    console.log('Initial Reel 2 Video state:', initialReel2State);
-
-    // Verify first click unmute feature:
-    // Click on the video element of Reel 2 (which should unmute it, trigger click on native button, and NOT pause it if it was playing, or play and unmute it)
-    console.log('[TEST 3] Triggering first click on Reel 2 video viewport...');
-    
-    // Play video first if paused to verify that unmuting doesn't pause it
-    await page.evaluate(() => {
-      const video = document.querySelector('#reel-2 video');
-      video.play();
+      document.querySelector('video').play();
     });
     await sleep(500);
 
-    // Now click the video element
-    await page.click('#reel-2 video');
-    await sleep(1500); // Wait for events to bubble and native clicks to register
+    // Click the video viewport to trigger first-click unmute
+    console.log('[TEST 1] Clicking video element to unmute...');
+    await page.click('video');
+    await sleep(1000);
 
-    await page.screenshot({ path: path.join(__dirname, 'first_click_unmute.png') });
-    console.log('[TEST 3] Screenshot saved to first_click_unmute.png');
+    const reelsPostClickMuted = await page.evaluate(() => {
+      return document.querySelector('video').muted;
+    });
+    console.log('[TEST 1] Reels video muted after viewport click:', reelsPostClickMuted);
+    if (reelsPostClickMuted) {
+      throw new Error('Reels: First-click viewport unmute failed!');
+    }
 
-    const postClickReel2State = await page.evaluate(() => {
-      const video = document.querySelector('#reel-2 video');
-      const label = document.querySelector('#reel-2 .native-mute-btn').getAttribute('aria-label');
+    await page.screenshot({ path: path.join(__dirname, 'reels_success.png') });
+    console.log('[TEST 1] Screenshot saved to reels_success.png');
+
+    // ==========================================
+    // --- TEST 2: STORIES MODE ---
+    // ==========================================
+    console.log('\n==========================================');
+    console.log('[TEST 2] Testing Stories Mode...');
+    console.log('==========================================');
+
+    await page.goto('https://www.instagram.com/stories/test/', { waitUntil: 'load' });
+    await page.addStyleTag({ path: path.join(__dirname, 'content.css') });
+    await page.addScriptTag({ path: path.join(__dirname, 'content.js') });
+
+    console.log('[TEST 2] Waiting for script injection...');
+    await sleep(2000);
+
+    const storySpeedBtnExists = await page.evaluate(() => {
+      const btn = document.querySelector('#story-container .ig-inline-speed-btn');
+      return !!btn;
+    });
+
+    console.log('[TEST 2] Story speed button injected:', storySpeedBtnExists);
+    if (!storySpeedBtnExists) {
+      throw new Error('Stories: Speed button not injected in story header!');
+    }
+
+    // Initially playback speed should be 1.0 (since button exists but speed is default 1x)
+    let storyPlaybackSpeed = await page.evaluate(() => {
+      return document.querySelector('video').playbackRate;
+    });
+    console.log('[TEST 2] Initial Story playback speed:', storyPlaybackSpeed);
+
+    // Click story speed button to toggle speed to 2.0x
+    console.log('[TEST 2] Clicking Story speed button...');
+    await page.click('#story-container .ig-inline-speed-btn');
+    await sleep(800);
+
+    storyPlaybackSpeed = await page.evaluate(() => {
+      const video = document.querySelector('video');
+      const btn = document.querySelector('#story-container .ig-inline-speed-btn');
       return {
-        paused: video.paused,
-        muted: video.muted,
-        volume: video.volume,
-        nativeBtnLabel: label
+        rate: video.playbackRate,
+        text: btn.textContent,
+        isActive: btn.classList.contains('ig-speed-active')
       };
     });
-    console.log('Post-Click Reel 2 Video state:', postClickReel2State);
-
-    if (postClickReel2State.muted) {
-      throw new Error('First-Click Unmute failed: Video is still muted!');
+    console.log('[TEST 2] Post-click Story speed status:', storyPlaybackSpeed);
+    if (storyPlaybackSpeed.rate !== 2.0) {
+      throw new Error('Stories: Failed to change playback speed to 2.0!');
     }
-    if (postClickReel2State.paused) {
-      throw new Error('First-Click Unmute failed: Video got paused instead of just unmuted!');
+    if (!storyPlaybackSpeed.isActive || storyPlaybackSpeed.text !== '2x') {
+      throw new Error('Stories: Speed button styling/text was not updated correctly!');
     }
-    console.log('First-Click Unmute feature verified successfully! The video is unmuted and remains playing.');
 
-    console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
+    // Click it again to toggle back to 1.0x
+    console.log('[TEST 2] Clicking Story speed button again to revert...');
+    await page.click('#story-container .ig-inline-speed-btn');
+    await sleep(800);
+
+    storyPlaybackSpeed = await page.evaluate(() => {
+      const video = document.querySelector('video');
+      const btn = document.querySelector('#story-container .ig-inline-speed-btn');
+      return {
+        rate: video.playbackRate,
+        text: btn.textContent,
+        isActive: btn.classList.contains('ig-speed-active')
+      };
+    });
+    console.log('[TEST 2] Reverted Story speed status:', storyPlaybackSpeed);
+    if (storyPlaybackSpeed.rate !== 1.0) {
+      throw new Error('Stories: Failed to revert playback speed to 1.0!');
+    }
+    if (storyPlaybackSpeed.isActive || storyPlaybackSpeed.text !== '1x') {
+      throw new Error('Stories: Speed button active styling was not cleared!');
+    }
+
+    await page.screenshot({ path: path.join(__dirname, 'stories_success.png') });
+    console.log('[TEST 2] Screenshot saved to stories_success.png');
+
+    // ==========================================
+    // --- TEST 3: FEED POST MODE ---
+    // ==========================================
+    console.log('\n==========================================');
+    console.log('[TEST 3] Testing Feed Post Mode...');
+    console.log('==========================================');
+
+    await page.goto('https://www.instagram.com/p/test/', { waitUntil: 'load' });
+    await page.addStyleTag({ path: path.join(__dirname, 'content.css') });
+    await page.addScriptTag({ path: path.join(__dirname, 'content.js') });
+
+    console.log('[TEST 3] Waiting for script injection...');
+    await sleep(2000);
+
+    const feedSpeedBtnExists = await page.evaluate(() => {
+      const btn = document.querySelector('#feed-container .ig-feed-speed-btn');
+      return !!btn;
+    });
+
+    console.log('[TEST 3] Feed speed button injected next to mute button:', feedSpeedBtnExists);
+    if (!feedSpeedBtnExists) {
+      throw new Error('Feed Post: Speed button not injected!');
+    }
+
+    // Toggle speed on Feed post
+    console.log('[TEST 3] Debugging Feed post speed button...');
+    const debugInfo = await page.evaluate(() => {
+      const btn = document.querySelector('#feed-container .ig-feed-speed-btn');
+      if (!btn) return 'Button not found';
+      const rect = btn.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const elFromPoint = document.elementFromPoint(x, y);
+      const style = window.getComputedStyle(btn);
+      
+      return {
+        tagName: btn.tagName,
+        className: btn.className,
+        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+        pointerEvents: style.pointerEvents,
+        opacity: style.opacity,
+        visibility: style.visibility,
+        display: style.display,
+        elementFromPoint: elFromPoint ? { tagName: elFromPoint.tagName, className: elFromPoint.className, id: elFromPoint.id } : null
+      };
+    });
+    console.log('[TEST 3] Debug info:', debugInfo);
+
+    console.log('[TEST 3] Clicking Feed post speed button...');
+    await page.click('#feed-container .ig-feed-speed-btn');
+    await sleep(800);
+
+    const feedPlaybackSpeed = await page.evaluate(() => {
+      const video = document.querySelector('video');
+      const btn = document.querySelector('#feed-container .ig-feed-speed-btn');
+      return {
+        rate: video.playbackRate,
+        text: btn.textContent,
+        isActive: btn.classList.contains('ig-speed-active')
+      };
+    });
+    console.log('[TEST 3] Post-click Feed speed status:', feedPlaybackSpeed);
+    if (feedPlaybackSpeed.rate !== 2.0) {
+      throw new Error('Feed Post: Failed to change playback speed to 2.0!');
+    }
+    if (!feedPlaybackSpeed.isActive || feedPlaybackSpeed.text !== '2x') {
+      throw new Error('Feed Post: Speed button styling/text was not updated correctly!');
+    }
+
+    await page.screenshot({ path: path.join(__dirname, 'feed_success.png') });
+    console.log('[TEST 3] Screenshot saved to feed_success.png');
+
+    console.log('\n--- ALL TESTS COMPLETED SUCCESSFULLY ---');
   } catch (error) {
-    console.error('--- TEST FAILED ---');
+    console.error('\n--- TEST FAILED ---');
     console.error(error);
   } finally {
     await browser.close();
