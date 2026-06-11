@@ -104,10 +104,18 @@ function safeGetSettings() {
     if (typeof chrome !== 'undefined' && chrome.runtime?.id && chrome.storage?.local) {
       chrome.storage.local.get(['igGlobalVolume', 'igGlobalMuted', 'igPlaybackSpeed', 'igAutoSkip'], (data) => {
         if (isScriptOrphaned()) return;
-        if (data.igGlobalVolume !== undefined) globalSliderValue = parseFloat(data.igGlobalVolume);
+        let hasSaved = false;
+        if (data.igGlobalVolume !== undefined) {
+          globalSliderValue = parseFloat(data.igGlobalVolume);
+          hasSaved = true;
+        }
         if (data.igGlobalMuted !== undefined) globalMuted = !!data.igGlobalMuted;
         if (data.igPlaybackSpeed !== undefined) globalPlaybackSpeed = parseFloat(data.igPlaybackSpeed);
         if (data.igAutoSkip !== undefined) globalAutoSkip = !!data.igAutoSkip;
+
+        if (hasSaved) {
+          lastUserInteractionTime = Date.now();
+        }
         syncAllVideos();
       });
     }
@@ -161,12 +169,15 @@ function isMainPlayer(video) {
   const segments = path.split('/').filter(Boolean);
   const firstSegment = segments[0] || '';
 
-  // Проверяем, является ли страница профилем пользователя (исключая системные пути)
-  const isProfile = segments.length > 0 && ![
+  // Определяем, является ли путь детальным просмотром поста/рилса/сторис
+  const isDetailView = path.includes('/reel/') || path.includes('/p/') || path.includes('/stories/');
+
+  // Проверяем, является ли страница профилем пользователя (исключая системные пути и детальные просмотры)
+  const isProfile = !isDetailView && segments.length > 0 && ![
     'reels', 'reel', 'stories', 'explore', 'direct', 'p'
   ].includes(firstSegment);
 
-  const isExplore = firstSegment === 'explore';
+  const isExplore = !isDetailView && firstSegment === 'explore';
 
   // Если мы на странице профиля или Explore, полностью игнорируем фоновые видео-превью
   if (isProfile || isExplore) {
@@ -1830,9 +1841,12 @@ function scanAndInject() {
       }
     }
 
-    // Оптимизация: берем кнопку из кэша, если она все еще валидна и подключена к DOM
+    // Получаем текущий контейнер плеера для валидации кэшированных элементов
+    const playerContainer = video.closest('section, [role="dialog"], article, .x17505xr, .x10b77sg') || video.parentElement;
+
+    // Оптимизация: берем кнопку из кэша, если она все еще валидна, подключена к DOM и находится в текущем контейнере
     let currentBtn = video._nativeMuteBtn;
-    if (!currentBtn || !currentBtn.isConnected) {
+    if (!currentBtn || !currentBtn.isConnected || !playerContainer || !playerContainer.contains(currentBtn)) {
       currentBtn = findNativeMuteButton(video);
       if (currentBtn) {
         video._nativeMuteBtn = currentBtn;
@@ -1840,8 +1854,11 @@ function scanAndInject() {
     }
 
     if (currentBtn) {
-      // Внедряем слайдер громкости (пересоздаем его, если он удален или если нативная кнопка изменилась в React)
-      if (!video._sliderContainer || !video._sliderContainer.isConnected || video._nativeMuteBtn !== currentBtn) {
+      // Определяем ожидаемый родительский контейнер для слайдера и скруббера
+      const expectedParent = findCommonAncestor(video, currentBtn) || video.parentElement;
+
+      // Внедряем слайдер громкости (пересоздаем его, если он удален, кнопка изменилась или родительский контейнер устарел)
+      if (!video._sliderContainer || !video._sliderContainer.isConnected || video._nativeMuteBtn !== currentBtn || video._sliderContainer.parentElement !== expectedParent) {
         if (video._sliderContainer) {
           video._sliderContainer.remove();
           video._sliderContainer = null;
@@ -1862,9 +1879,10 @@ function scanAndInject() {
       }
 
       // Внедряем скруббер (перемотку) в тот же верхний контейнер, когда кнопка звука найдена
-      if (!video._hasScrubber || !video._scrubberContainer || !video._scrubberContainer.isConnected) {
+      if (!video._hasScrubber || !video._scrubberContainer || !video._scrubberContainer.isConnected || video._scrubberContainer.parentElement !== expectedParent) {
         if (video._scrubberContainer) {
           video._scrubberContainer.remove();
+          video._scrubberContainer = null;
         }
         video._hasScrubber = false;
         injectScrubber(video);
@@ -1880,19 +1898,20 @@ function scanAndInject() {
       }
     }
 
-    // Оптимизация: берем Reels Action Bar из кэша
+    // Оптимизация: берем Reels Action Bar из кэша, если он валиден и принадлежит текущему плееру
     let actionBar = video._cachedActionBar;
-    if (!actionBar || !actionBar.isConnected) {
+    if (!actionBar || !actionBar.isConnected || !playerContainer || !playerContainer.contains(actionBar)) {
       actionBar = findReelsActionBar(video);
       if (actionBar) {
         video._cachedActionBar = actionBar;
       }
     }
 
-    // Стабильное создание кнопок скорости: пересоздаем только если они физически отключены от DOM
+    // Стабильное создание кнопок скорости: пересоздаем только если они физически отключены от DOM или если action bar изменился
     let hasExtraControlsConnected = video._hasExtraControls &&
       video._speedActionItem && video._speedActionItem.isConnected &&
-      video._autoskipActionItem && video._autoskipActionItem.isConnected;
+      video._autoskipActionItem && video._autoskipActionItem.isConnected &&
+      (!actionBar || (video._speedActionItem.parentElement === actionBar && video._autoskipActionItem.parentElement === actionBar));
 
     if (!hasExtraControlsConnected) {
       if (video._speedActionItem) video._speedActionItem.remove();
