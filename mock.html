@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mock Instagram Reels</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      height: 100vh;
+    }
+
+    .reels-container {
+      height: 100vh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+    }
+
+    /* A mock Reel container */
+    .x17505xr {
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      scroll-snap-align: start;
+      border-bottom: 1px solid #333;
+    }
+
+    .video-wrapper {
+      position: relative;
+      width: 400px;
+      height: 700px;
+      background: #111;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      cursor: pointer;
+    }
+
+    /* Reels right action bar */
+    .action-bar-mock {
+      position: absolute;
+      right: -60px;
+      bottom: 40px;
+      width: 50px;
+      height: 350px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 16px;
+      background: transparent;
+    }
+
+    .action-bar-mock button {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Mute button container overlaying the video */
+    .mute-btn-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+    }
+
+    .native-mute-btn {
+      background: rgba(0, 0, 0, 0.5);
+      border: none;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      transition: background 0.2s;
+    }
+
+    .native-mute-btn:hover {
+      background: rgba(0, 0, 0, 0.8);
+    }
+
+    .label-indicator {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      background: rgba(0,0,0,0.5);
+      padding: 4px 12px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="reels-container">
+    <!-- REEL 1 -->
+    <div class="x17505xr" id="reel-1">
+      <div class="video-wrapper">
+        <video src="https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-against-the-sky-42436-large.mp4" loop muted playsinline></video>
+        <div class="label-indicator">Reel 1</div>
+        <div class="mute-btn-container">
+          <button class="native-mute-btn _abl-" aria-label="Unmute">
+            <!-- Speaker SVG matching isSpeakerSVG check (path contains M3 9v6h4) -->
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="action-bar-mock">
+          <button>Like</button>
+          <button>Comm</button>
+          <button>Share</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- REEL 2 -->
+    <div class="x17505xr" id="reel-2">
+      <div class="video-wrapper">
+        <video src="https://assets.mixkit.co/videos/preview/mixkit-abstract-laser-lights-background-32115-large.mp4" loop muted playsinline></video>
+        <div class="label-indicator">Reel 2</div>
+        <div class="mute-btn-container">
+          <button class="native-mute-btn _abl-" aria-label="Unmute">
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="action-bar-mock">
+          <button>Like</button>
+          <button>Comm</button>
+          <button>Share</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Make play, pause, and paused stateful in our mock video elements
+    document.querySelectorAll('video').forEach(video => {
+      let isPaused = true;
+      Object.defineProperty(video, 'paused', {
+        get() { return isPaused; },
+        set(val) { isPaused = val; },
+        configurable: true
+      });
+
+      video.play = () => {
+        isPaused = false;
+        // Trigger standard HTML5 media 'play' and 'playing' events for content.js
+        video.dispatchEvent(new Event('play'));
+        video.dispatchEvent(new Event('playing'));
+        return Promise.resolve();
+      };
+
+      video.pause = () => {
+        isPaused = true;
+        video.dispatchEvent(new Event('pause'));
+      };
+    });
+
+    // Native mute/unmute visual indicator logic
+    document.querySelectorAll('.x17505xr').forEach(reel => {
+      const video = reel.querySelector('video');
+      const muteBtn = reel.querySelector('.native-mute-btn');
+      
+      const updateMuteButtonState = () => {
+        const isMuted = video.muted;
+        muteBtn.setAttribute('aria-label', isMuted ? 'Unmute' : 'Mute');
+        muteBtn.querySelector('svg').innerHTML = isMuted 
+          ? '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path>'
+          : '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor"></path>';
+      };
+
+      muteBtn.addEventListener('click', () => {
+        const isCurrentlyMutedLabel = muteBtn.getAttribute('aria-label') === 'Unmute';
+        video.muted = !isCurrentlyMutedLabel;
+        updateMuteButtonState();
+      });
+
+      video.addEventListener('click', () => {
+        if (video.paused) {
+          video.play().catch(err => console.log('Playback error:', err));
+        } else {
+          video.pause();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

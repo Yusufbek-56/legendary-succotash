@@ -1,0 +1,462 @@
+/* ==========================================
+   Instagram Volume Controller - Sibling CSS
+   ========================================== */
+
+/* Контейнер ползунка, вшиваемый рядом с оригинальной кнопкой */
+.ig-volume-slider-container {
+  position: absolute;
+  z-index: 1000000;
+  /* Размещается поверх плеера и оверлеев, но под кнопкой (которая z-index: 1000001) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: transparent;
+  /* Убран темный овал */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease, padding 0.2s ease, margin 0.2s ease;
+  padding: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Направление раскрытия */
+.ig-volume-slider-container.ig-left-aligned {
+  transform-origin: left center;
+}
+
+.ig-volume-slider-container.ig-right-aligned {
+  transform-origin: right center;
+}
+
+/* Раскрытое состояние ползунка */
+.ig-volume-slider-container.ig-expanded {
+  width: 104px;
+  opacity: 1;
+  pointer-events: auto !important;
+  z-index: 1000005 !important;
+}
+
+.ig-volume-slider-container.ig-expanded.ig-left-aligned {
+  padding: 0 10px 0 12px;
+}
+
+.ig-volume-slider-container.ig-expanded.ig-right-aligned {
+  padding: 0 12px 0 10px;
+}
+
+/* Стилизация ползунка */
+.ig-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  /* Тонкий и изящный трек */
+  border-radius: 1.5px;
+  outline: none;
+  cursor: pointer;
+  margin: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  /* Тень для видимости на белом фоне */
+}
+
+/* Бегунок (Thumb) */
+.ig-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  /* Уменьшенный аккуратный бегунок */
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  /* Тень для бегунка */
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ig-volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.ig-volume-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  /* Тень для бегунка */
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ig-volume-slider::-moz-range-thumb:hover {
+  transform: scale(1.25);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Тост-индикатор громкости (глобальный) */
+.ig-fallback-volume-button {
+  position: fixed;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 2147483646;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.75));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.ig-fallback-volume-button svg {
+  width: 21px;
+  height: 21px;
+  overflow: visible;
+}
+
+.ig-fallback-volume-button path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ig-fallback-volume-button .ig-fallback-speaker {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+.ig-fallback-volume-button .ig-fallback-slash {
+  display: none;
+}
+
+.ig-fallback-volume-button.ig-muted .ig-fallback-wave {
+  display: none;
+}
+
+.ig-fallback-volume-button.ig-muted .ig-fallback-slash {
+  display: block;
+}
+
+.ig-volume-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 2147483647;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  letter-spacing: 0.02em;
+}
+
+.ig-volume-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ==========================================
+   Instagram Video Scrubber (Progress Bar)
+   ========================================== */
+.ig-video-scrubber-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 16px;
+  /* Фиксированная высота - исключает мерцание и дрожание ховера */
+  cursor: pointer;
+  z-index: 1000010 !important;
+  /* Размещается ПОВЕРХ кнопки звука и слайдера громкости */
+  background-color: transparent;
+  /* Сам контейнер прозрачен */
+  display: flex;
+  align-items: flex-end;
+  /* Шкала всегда позиционируется у нижнего края */
+  box-sizing: border-box;
+  overflow: visible;
+  padding: 0 6px;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: auto !important;
+}
+
+/* Задний фон прогресс-бара */
+.ig-video-scrubber-progress-bg {
+  width: 100%;
+  height: 3px;
+  /* Тонкий белый в состоянии покоя */
+  background-color: rgba(255, 255, 255, 0.25);
+  position: relative;
+  transition: height 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s ease;
+}
+
+/* При наведении увеличивается высота только у внутренней шкалы */
+.ig-video-scrubber-container:hover .ig-video-scrubber-progress-bg,
+.ig-video-scrubber-container.ig-active .ig-video-scrubber-progress-bg {
+  height: 8px;
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Заполненная часть прогресс-бара */
+.ig-video-scrubber-progress-bar {
+  height: 100%;
+  width: 0%;
+  background-color: #ffffff;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+}
+
+/* Бегунок прогресс-бара */
+.ig-video-scrubber-thumb {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  bottom: 0;
+  /* Изначальное положение по центру тонкой шкалы */
+  left: 0%;
+  transform: translate(-50%, 50%) scale(0);
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), bottom 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  z-index: 1001;
+}
+
+/* Отображение бегунка и его плавный подъем по центру утолщенной шкалы */
+.ig-video-scrubber-container:hover .ig-video-scrubber-thumb,
+.ig-video-scrubber-container.ig-active .ig-video-scrubber-thumb {
+  transform: translate(-50%, 50%) scale(1);
+  bottom: 1.5px;
+  /* Автоматический подъем по центру при наведении */
+}
+
+/* ==========================================
+   Playback Speed & Auto-skip Controls (Sidebar)
+   ========================================== */
+
+/* Wrapper for our injected elements to match IG's layout */
+.ig-action-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  animation: igFadeIn 0.25s ease-out;
+}
+
+@keyframes igFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Base button matching Instagram's native action buttons */
+.ig-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  transition: opacity 0.2s ease;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+}
+
+/* Переносим анимацию масштабирования только на SVG иконку */
+.ig-control-btn svg {
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.ig-control-btn:hover {
+  opacity: 0.85;
+}
+
+.ig-control-btn:hover svg {
+  transform: scale(1.08);
+}
+
+/* При клике сжимается только иконка внутри кнопки, а меню остается стабильным */
+.ig-control-btn:active svg {
+  transform: scale(0.92);
+}
+
+/* Control labels matching native counts/labels */
+.ig-control-label {
+  color: #f5f5f5;
+  font-size: 12px;
+  font-weight: 400;
+  margin-top: 4px;
+  text-align: center;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+/* Speedometer SVG */
+.ig-speed-svg {
+  width: 24px;
+  height: 24px;
+  overflow: visible;
+}
+
+/* Needle animation */
+.ig-speed-needle {
+  transform-origin: 12px 15px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dropdown Menu - opens to the LEFT of the speed button */
+.ig-speed-menu {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%) translateX(-12px);
+  margin-right: 4px;
+  background: rgba(26, 26, 26, 0.85);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-shadow: -8px 8px 32px rgba(0, 0, 0, 0.5);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  opacity: 0;
+  visibility: hidden;
+  transform-origin: right center;
+  transition: opacity 0.08s ease, visibility 0.08s;
+  z-index: 2000000;
+
+  /* Фиксация размеров для устранения прыжков */
+  width: 90px !important;
+  box-sizing: border-box !important;
+}
+
+/* Hover bridge to prevent menu from closing when mouse moves over the spacing gap to the speed button */
+.ig-speed-menu::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 24px;
+  background: transparent;
+  cursor: default;
+}
+
+.ig-speed-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(-12px);
+}
+
+.ig-speed-menu-item {
+  color: #f5f5f5;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.ig-speed-menu-item:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.ig-speed-menu-item.active {
+  background: #ffffff;
+  color: #000000;
+  font-weight: normal;
+  /* Оставляем стандартный вес */
+  text-shadow: 0.2px 0 0 currentColor, -0.2px 0 0 currentColor !important;
+  /* Делаем псевдо-жирным без расширения */
+}
+
+/* Auto-skip button state styling */
+.ig-autoskip-btn {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* When Auto-skip is enabled, color it in Instagram's active blue brand color */
+.ig-action-item.active .ig-control-btn {
+  color: #0095f6;
+  filter: drop-shadow(0 0 6px rgba(0, 149, 246, 0.5));
+}
+
+.ig-action-item.active .ig-control-label {
+  color: #0095f6;
+  font-weight: 600;
+}
+
+/* Floating fallback mode (used when no sidebar exists, e.g. on standard feed posts) */
+.ig-extra-controls.ig-floating {
+  position: absolute;
+  right: 12px;
+  bottom: 80px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 8px 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 1000000;
+}
+
+.ig-extra-controls.ig-floating .ig-action-item {
+  margin: 4px 0;
+  width: 48px;
+}
