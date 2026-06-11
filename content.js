@@ -104,18 +104,10 @@ function safeGetSettings() {
     if (typeof chrome !== 'undefined' && chrome.runtime?.id && chrome.storage?.local) {
       chrome.storage.local.get(['igGlobalVolume', 'igGlobalMuted', 'igPlaybackSpeed', 'igAutoSkip'], (data) => {
         if (isScriptOrphaned()) return;
-        let hasSaved = false;
-        if (data.igGlobalVolume !== undefined) {
-          globalSliderValue = parseFloat(data.igGlobalVolume);
-          hasSaved = true;
-        }
+        if (data.igGlobalVolume !== undefined) globalSliderValue = parseFloat(data.igGlobalVolume);
         if (data.igGlobalMuted !== undefined) globalMuted = !!data.igGlobalMuted;
         if (data.igPlaybackSpeed !== undefined) globalPlaybackSpeed = parseFloat(data.igPlaybackSpeed);
         if (data.igAutoSkip !== undefined) globalAutoSkip = !!data.igAutoSkip;
-
-        if (hasSaved) {
-          lastUserInteractionTime = Date.now();
-        }
         syncAllVideos();
       });
     }
@@ -1707,6 +1699,36 @@ function clearOverlayInterference(video) {
   }
 }
 
+// --- СКРЫТИЕ НАТИВНОГО ВЕРТИКАЛЬНОГО СЛАЙДЕРА ---
+function hideNativeVerticalSlider(video, currentBtn) {
+  if (!currentBtn || !currentBtn.isConnected) return;
+
+  let parent = currentBtn.parentElement;
+  for (let depth = 0; depth < 2 && parent; depth++) {
+    const siblings = parent.children;
+    for (let i = 0; i < siblings.length; i++) {
+      const sibling = siblings[i];
+      if (
+        sibling !== currentBtn &&
+        !sibling.classList.contains('ig-volume-slider-container') &&
+        !sibling.classList.contains('ig-video-scrubber-container') &&
+        !sibling.contains(currentBtn)
+      ) {
+        const style = window.getComputedStyle(sibling);
+        const isAbsolute = style.position === 'absolute' || style.position === 'fixed';
+        const height = parseFloat(style.height) || 0;
+        const width = parseFloat(style.width) || 0;
+        const isVertical = height > width && height > 40;
+
+        if (isAbsolute && isVertical) {
+          sibling.style.setProperty('display', 'none', 'important');
+        }
+      }
+    }
+    parent = parent.parentElement;
+  }
+}
+
 // --- MUTATION OBSERVER ---
 function scanAndInject() {
   // Самоликвидация: если расширение перезагружено, останавливаем старые фоновые интервалы и очищаем стили
@@ -1854,6 +1876,9 @@ function scanAndInject() {
     }
 
     if (currentBtn) {
+      // Скрываем нативный вертикальный слайдер звука
+      hideNativeVerticalSlider(video, currentBtn);
+
       // Определяем ожидаемый родительский контейнер для слайдера и скруббера
       const expectedParent = findCommonAncestor(video, currentBtn) || video.parentElement;
 
