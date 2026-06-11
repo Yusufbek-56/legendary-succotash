@@ -1077,7 +1077,10 @@ function injectStorySpeedButton(video) {
   if (!storySection) return;
 
   // Ищем верхнюю панель с кнопками: обычно это div/header содержащий ряд кнопок
-  const headerButtons = storySection.querySelectorAll('button, [role="button"]');
+  const header = storySection.querySelector('header');
+  const headerButtons = header
+    ? header.querySelectorAll('button, [role="button"]')
+    : storySection.querySelectorAll('button, [role="button"]');
   if (headerButtons.length === 0) return;
 
   // Находим последнюю кнопку в верхней части ("⋯" / more), чтобы вставить рядом
@@ -1089,8 +1092,12 @@ function injectStorySpeedButton(video) {
     // Игнорируем кнопки внутри нижней панели реакций
     if (btn.closest('._ac7v')) continue;
     const rect = btn.getBoundingClientRect();
-    // Кнопка должна быть в верхней трети видео
-    if (rect.top < videoRect.top + videoRect.height * 0.25 && rect.width > 0 && rect.width < 60) {
+    
+    // Кнопка должна быть в верхней трети видео и горизонтально внутри границ видео
+    const inUpperThird = rect.top < videoRect.top + videoRect.height * 0.25;
+    const withinHorizontalBounds = rect.left >= videoRect.left - 10 && rect.right <= videoRect.right + 10;
+    
+    if (inUpperThird && withinHorizontalBounds && rect.width > 0 && rect.width < 60) {
       if (rect.right > maxRight) {
         maxRight = rect.right;
         rightmostBtn = btn;
@@ -1202,7 +1209,7 @@ function injectFeedSpeedButton(video, nativeMuteBtn) {
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
     transition: background 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
     letter-spacing: -0.5px;
-    opacity: 0;
+    opacity: 1;
   `;
 
   // Позиционируем слева от кнопки мьюта

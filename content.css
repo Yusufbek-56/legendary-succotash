@@ -481,14 +481,6 @@
   animation: igFadeIn 0.25s ease-out;
 }
 
-/* Specific styling for Feed speed button to show on hover of post container */
-.ig-feed-speed-btn {
-  opacity: 0;
-}
-.ig-speed-parent:hover .ig-feed-speed-btn,
-.ig-feed-speed-btn:hover {
-  opacity: 1 !important;
-}
 
 /* Active state: blue glow when speed ≠ 1x */
 .ig-inline-speed-btn.ig-speed-active {
