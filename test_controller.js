@@ -170,49 +170,79 @@ function sleep(ms) {
     });
     console.log('[TEST 2] Initial Story playback speed:', storyPlaybackSpeed);
 
-    // Click story speed button to toggle speed to 2.0x
-    console.log('[TEST 2] Clicking Story speed button...');
+    // Click story speed button to open the menu
+    console.log('[TEST 2] Clicking Story speed button to open menu...');
     await page.click('#story-container .ig-inline-speed-btn');
-    await sleep(800);
+    await sleep(300);
+
+    let menuExists = await page.evaluate(() => !!document.querySelector('.ig-speed-menu'));
+    console.log('[TEST 2] Speed menu exists:', menuExists);
+    if (!menuExists) throw new Error('Stories: Speed menu did not open on button click');
+
+    // Select 0.5x speed
+    console.log('[TEST 2] Selecting 0.5x speed from menu...');
+    await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll('.ig-speed-menu-item'));
+      const target = items.find(el => el.textContent.trim() === '0.5x');
+      if (target) target.click();
+    });
+    await sleep(300);
 
     storyPlaybackSpeed = await page.evaluate(() => {
       const video = document.querySelector('video');
       const btn = document.querySelector('#story-container .ig-inline-speed-btn');
+      const menu = document.querySelector('.ig-speed-menu');
       return {
         rate: video.playbackRate,
         text: btn.textContent,
-        isActive: btn.classList.contains('ig-speed-active')
+        isActive: btn.classList.contains('ig-speed-active'),
+        menuExists: !!menu
       };
     });
-    console.log('[TEST 2] Post-click Story speed status:', storyPlaybackSpeed);
-    if (storyPlaybackSpeed.rate !== 2.0) {
-      throw new Error('Stories: Failed to change playback speed to 2.0!');
-    }
-    if (!storyPlaybackSpeed.isActive || storyPlaybackSpeed.text !== '2x') {
-      throw new Error('Stories: Speed button styling/text was not updated correctly!');
-    }
+    console.log('[TEST 2] After selecting 0.5x:', storyPlaybackSpeed);
+    if (storyPlaybackSpeed.rate !== 0.5) throw new Error('Stories: Expected playback rate 0.5, got ' + storyPlaybackSpeed.rate);
+    if (storyPlaybackSpeed.text !== '0.5x') throw new Error('Stories: Expected button text "0.5x", got ' + storyPlaybackSpeed.text);
+    if (!storyPlaybackSpeed.isActive) throw new Error('Stories: Button should have active style for 0.5x');
+    if (storyPlaybackSpeed.menuExists) throw new Error('Stories: Menu should have closed after selection');
 
-    // Click it again to toggle back to 1.0x
-    console.log('[TEST 2] Clicking Story speed button again to revert...');
+    // Click again, select 1x (Normal) to revert
+    console.log('[TEST 2] Re-opening speed menu...');
     await page.click('#story-container .ig-inline-speed-btn');
-    await sleep(800);
+    await sleep(300);
+
+    console.log('[TEST 2] Selecting 1x (Normal) from menu...');
+    await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll('.ig-speed-menu-item'));
+      const target = items.find(el => el.textContent.trim() === '1x (Normal)');
+      if (target) target.click();
+    });
+    await sleep(300);
 
     storyPlaybackSpeed = await page.evaluate(() => {
       const video = document.querySelector('video');
       const btn = document.querySelector('#story-container .ig-inline-speed-btn');
-      return {
-        rate: video.playbackRate,
-        text: btn.textContent,
-        isActive: btn.classList.contains('ig-speed-active')
-      };
+      return { rate: video.playbackRate, text: btn.textContent, isActive: btn.classList.contains('ig-speed-active') };
     });
-    console.log('[TEST 2] Reverted Story speed status:', storyPlaybackSpeed);
-    if (storyPlaybackSpeed.rate !== 1.0) {
-      throw new Error('Stories: Failed to revert playback speed to 1.0!');
-    }
-    if (storyPlaybackSpeed.isActive || storyPlaybackSpeed.text !== '1x') {
-      throw new Error('Stories: Speed button active styling was not cleared!');
-    }
+    console.log('[TEST 2] After selecting 1x:', storyPlaybackSpeed);
+    if (storyPlaybackSpeed.rate !== 1.0) throw new Error('Stories: Expected playback rate 1.0, got ' + storyPlaybackSpeed.rate);
+    if (storyPlaybackSpeed.text !== '1x') throw new Error('Stories: Expected button text "1x", got ' + storyPlaybackSpeed.text);
+    if (storyPlaybackSpeed.isActive) throw new Error('Stories: Button should NOT have active style for 1x');
+
+    // Test click outside to close
+    console.log('[TEST 2] Opening speed menu to test click-outside close...');
+    await page.click('#story-container .ig-inline-speed-btn');
+    await sleep(300);
+
+    menuExists = await page.evaluate(() => !!document.querySelector('.ig-speed-menu'));
+    if (!menuExists) throw new Error('Stories: Speed menu failed to open for click-outside test');
+
+    console.log('[TEST 2] Clicking outside on body...');
+    await page.click('body', { delay: 10 });
+    await sleep(300);
+
+    menuExists = await page.evaluate(() => !!document.querySelector('.ig-speed-menu'));
+    console.log('[TEST 2] Menu exists after click outside:', menuExists);
+    if (menuExists) throw new Error('Stories: Menu did not close on clicking outside');
 
     await page.screenshot({ path: path.join(__dirname, 'stories_success.png') });
     console.log('[TEST 2] Screenshot saved to stories_success.png');
@@ -241,50 +271,55 @@ function sleep(ms) {
       throw new Error('Feed Post: Speed button not injected!');
     }
 
-    // Toggle speed on Feed post
-    console.log('[TEST 3] Debugging Feed post speed button...');
-    const debugInfo = await page.evaluate(() => {
-      const btn = document.querySelector('#feed-container .ig-feed-speed-btn');
-      if (!btn) return 'Button not found';
-      const rect = btn.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      const elFromPoint = document.elementFromPoint(x, y);
-      const style = window.getComputedStyle(btn);
-      
-      return {
-        tagName: btn.tagName,
-        className: btn.className,
-        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-        pointerEvents: style.pointerEvents,
-        opacity: style.opacity,
-        visibility: style.visibility,
-        display: style.display,
-        elementFromPoint: elFromPoint ? { tagName: elFromPoint.tagName, className: elFromPoint.className, id: elFromPoint.id } : null
-      };
-    });
-    console.log('[TEST 3] Debug info:', debugInfo);
-
-    console.log('[TEST 3] Clicking Feed post speed button...');
+    // Click to open menu
+    console.log('[TEST 3] Clicking Feed speed button to open menu...');
     await page.click('#feed-container .ig-feed-speed-btn');
-    await sleep(800);
+    await sleep(300);
 
-    const feedPlaybackSpeed = await page.evaluate(() => {
+    menuExists = await page.evaluate(() => !!document.querySelector('.ig-speed-menu'));
+    console.log('[TEST 3] Feed Speed menu exists:', menuExists);
+    if (!menuExists) throw new Error('Feed Post: Speed menu did not open');
+
+    // Select 2.5x speed
+    console.log('[TEST 3] Selecting 2.5x speed from menu...');
+    await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll('.ig-speed-menu-item'));
+      const target = items.find(el => el.textContent.trim() === '2.5x');
+      if (target) target.click();
+    });
+    await sleep(300);
+
+    feedSpeed = await page.evaluate(() => {
       const video = document.querySelector('video');
       const btn = document.querySelector('#feed-container .ig-feed-speed-btn');
-      return {
-        rate: video.playbackRate,
-        text: btn.textContent,
-        isActive: btn.classList.contains('ig-speed-active')
-      };
+      return { rate: video.playbackRate, text: btn.textContent, isActive: btn.classList.contains('ig-speed-active') };
     });
-    console.log('[TEST 3] Post-click Feed speed status:', feedPlaybackSpeed);
-    if (feedPlaybackSpeed.rate !== 2.0) {
-      throw new Error('Feed Post: Failed to change playback speed to 2.0!');
-    }
-    if (!feedPlaybackSpeed.isActive || feedPlaybackSpeed.text !== '2x') {
-      throw new Error('Feed Post: Speed button styling/text was not updated correctly!');
-    }
+    console.log('[TEST 3] After selecting 2.5x:', feedSpeed);
+    if (feedSpeed.rate !== 2.5) throw new Error('Feed Post: Expected playback rate 2.5, got ' + feedSpeed.rate);
+    if (feedSpeed.text !== '2.5x') throw new Error('Feed Post: Expected text "2.5x", got ' + feedSpeed.text);
+    if (!feedSpeed.isActive) throw new Error('Feed Post: Button should have active style for 2.5x');
+
+    // Select 1.0x to revert
+    console.log('[TEST 3] Re-opening Feed speed menu...');
+    await page.click('#feed-container .ig-feed-speed-btn');
+    await sleep(300);
+
+    console.log('[TEST 3] Selecting 1x (Normal) from menu...');
+    await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll('.ig-speed-menu-item'));
+      const target = items.find(el => el.textContent.trim() === '1x (Normal)');
+      if (target) target.click();
+    });
+    await sleep(300);
+
+    feedSpeed = await page.evaluate(() => {
+      const video = document.querySelector('video');
+      const btn = document.querySelector('#feed-container .ig-feed-speed-btn');
+      return { rate: video.playbackRate, text: btn.textContent, isActive: btn.classList.contains('ig-speed-active') };
+    });
+    console.log('[TEST 3] After reverting to 1x:', feedSpeed);
+    if (feedSpeed.rate !== 1.0) throw new Error('Feed Post: Expected rate 1.0, got ' + feedSpeed.rate);
+    if (feedSpeed.isActive) throw new Error('Feed Post: Button should NOT have active style for 1x');
 
     await page.screenshot({ path: path.join(__dirname, 'feed_success.png') });
     console.log('[TEST 3] Screenshot saved to feed_success.png');

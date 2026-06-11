@@ -135,6 +135,113 @@ function saveSettings() {
   }
 }
 
+let activeSpeedMenu = null;
+
+function closeSpeedMenu() {
+  if (activeSpeedMenu) {
+    activeSpeedMenu.remove();
+    activeSpeedMenu = null;
+  }
+}
+
+// Global click-outside listener to close the speed menu
+window.addEventListener('pointerdown', (e) => {
+  if (activeSpeedMenu) {
+    const isAnchorClick = activeSpeedMenu._anchor && activeSpeedMenu._anchor.contains(e.target);
+    const isMenuClick = activeSpeedMenu.contains(e.target);
+    if (!isAnchorClick && !isMenuClick) {
+      closeSpeedMenu();
+    }
+  }
+}, { capture: true, passive: true });
+
+// Close speed menu on scroll or resize
+window.addEventListener('scroll', closeSpeedMenu, { passive: true });
+window.addEventListener('resize', closeSpeedMenu, { passive: true });
+
+function showSpeedMenu(anchorBtn, video) {
+  // If menu is already open for this anchor, toggle it off
+  if (activeSpeedMenu && activeSpeedMenu._anchor === anchorBtn) {
+    closeSpeedMenu();
+    return;
+  }
+
+  closeSpeedMenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'ig-speed-menu';
+  menu._anchor = anchorBtn;
+  activeSpeedMenu = menu;
+
+  const speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+  speeds.forEach(speed => {
+    const item = document.createElement('div');
+    item.className = 'ig-speed-menu-item';
+    if (Math.abs(globalPlaybackSpeed - speed) < 0.01) {
+      item.classList.add('active');
+    }
+    item.textContent = speed === 1.0 ? '1x (Normal)' : `${speed}x`;
+
+    const selectSpeed = (ev) => {
+      ev.stopPropagation();
+      ev.preventDefault();
+      globalPlaybackSpeed = speed;
+      saveSettings();
+      syncAllVideos();
+      closeSpeedMenu();
+    };
+
+    item.addEventListener('click', selectSpeed, { capture: true });
+    item.addEventListener('pointerdown', (ev) => ev.stopPropagation(), { capture: true });
+    item.addEventListener('mousedown', (ev) => ev.stopPropagation(), { capture: true });
+
+    menu.appendChild(item);
+  });
+
+  // Block event propagation to prevent Instagram from taking actions
+  const blockEvents = (ev) => {
+    ev.stopPropagation();
+  };
+  menu.addEventListener('pointerdown', blockEvents);
+  menu.addEventListener('mousedown', blockEvents);
+  menu.addEventListener('click', blockEvents);
+
+  document.body.appendChild(menu);
+
+  // Position the menu near the anchor
+  const updateMenuPosition = () => {
+    if (!anchorBtn.isConnected || !menu.isConnected) {
+      closeSpeedMenu();
+      return;
+    }
+    const rect = anchorBtn.getBoundingClientRect();
+    const menuWidth = 110;
+    const menuHeight = menu.offsetHeight || 250;
+    
+    // Default position: above the button
+    let top = rect.top - menuHeight - 8;
+    let left = rect.left + (rect.width - menuWidth) / 2;
+
+    // If it doesn't fit on top, display below the button
+    if (top < 10) {
+      top = rect.bottom + 8;
+    }
+
+    // Keep horizontal boundaries
+    if (left < 10) left = 10;
+    if (left + menuWidth > window.innerWidth - 10) {
+      left = window.innerWidth - menuWidth - 10;
+    }
+
+    menu.style.top = `${top}px`;
+    menu.style.left = `${left}px`;
+  };
+
+  updateMenuPosition();
+  // Adjust position in case layout renders with offsetHeight
+  setTimeout(updateMenuPosition, 0);
+}
+
 // --- ХЕЛПЕР ОПРЕДЕЛЕНИЯ REELS ---
 function checkIsReel(video) {
   if (!video) return false;
@@ -626,9 +733,7 @@ function setupStoryViewportClick(video) {
     if (speedBtnEl) {
       e.stopPropagation();
       e.preventDefault();
-      globalPlaybackSpeed = globalPlaybackSpeed === 1.0 ? 2.0 : 1.0;
-      saveSettings();
-      syncAllVideos();
+      showSpeedMenu(speedBtnEl, activeVideo);
       return;
     }
 
@@ -1153,11 +1258,11 @@ function injectStorySpeedButton(video) {
   enforcePlaybackRate(video);
 
   const toggleSpeed = (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    globalPlaybackSpeed = globalPlaybackSpeed === 1.0 ? 2.0 : 1.0;
-    saveSettings();
-    syncAllVideos();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    showSpeedMenu(speedBtn, video);
   };
 
   speedBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); }, { capture: true });
@@ -1242,11 +1347,11 @@ function injectFeedSpeedButton(video, nativeMuteBtn) {
   enforcePlaybackRate(video);
 
   const toggleSpeed = (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    globalPlaybackSpeed = globalPlaybackSpeed === 1.0 ? 2.0 : 1.0;
-    saveSettings();
-    syncAllVideos();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    showSpeedMenu(speedBtn, video);
   };
 
   speedBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); }, { capture: true });
