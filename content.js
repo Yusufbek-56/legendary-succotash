@@ -683,213 +683,69 @@ function updateScrubberPosition(video, scrubberContainer) {
   scrubberContainer.style.setProperty('bottom', `${bottom}px`, 'important');
 }
 
-// --- УПРАВЛЕНИЕ ПОЗИЦИЕЙ СЛАЙДЕРА ---
-function updateSliderPosition(video, nativeBtn, sliderContainer) {
-  if (!nativeBtn.isConnected || !sliderContainer.isConnected) return;
 
-  const rect = nativeBtn.getBoundingClientRect();
-
-  // Кэширование позиции кнопки для предотвращения Forced Synchronous Reflow
-  const lastRect = video._lastBtnRect;
-  if (lastRect &&
-    Math.abs(lastRect.top - rect.top) < 0.5 &&
-    Math.abs(lastRect.left - rect.left) < 0.5 &&
-    Math.abs(lastRect.width - rect.width) < 0.5 &&
-    Math.abs(lastRect.height - rect.height) < 0.5) {
-    return;
-  }
-  video._lastBtnRect = rect;
-
-  const playerRect = video.getBoundingClientRect();
-
-  const nativeBtnCenterX = rect.left + rect.width / 2;
-  const playerCenterX = playerRect.left + playerRect.width / 2;
-  const isLeftAligned = nativeBtnCenterX < playerCenterX;
-
-  const btnStyle = window.getComputedStyle(nativeBtn);
-  if (btnStyle.position === 'static') {
-    nativeBtn.style.position = 'relative';
-  }
-  nativeBtn.style.zIndex = '1000001';
-
-  const height = Math.max(rect.height, 28);
-  sliderContainer.style.height = `${height}px`;
-  sliderContainer.style.borderRadius = `${height / 2}px`;
-
-  const container = sliderContainer.parentElement || video.parentElement || document.body;
-  const offsetRect = container.getBoundingClientRect();
-  const style = window.getComputedStyle(container);
-  const borderTop = parseFloat(style.borderTopWidth) || 0;
-  const borderLeft = parseFloat(style.borderLeftWidth) || 0;
-  const borderRight = parseFloat(style.borderRightWidth) || 0;
-
-  const top = rect.top - offsetRect.top - borderTop + (rect.height - height) / 2;
-  sliderContainer.style.top = `${top}px`;
-
-  const overlap = rect.width / 4;
-
-  if (isLeftAligned) {
-    const left = rect.right - offsetRect.left - borderLeft - overlap - 3;
-    sliderContainer.style.left = `${left}px`;
-    sliderContainer.style.right = 'auto';
-    sliderContainer.classList.add('ig-left-aligned');
-    sliderContainer.classList.remove('ig-right-aligned');
-  } else {
-    const right = offsetRect.right - borderRight - rect.left - overlap + 3;
-    sliderContainer.style.right = `${right}px`;
-    sliderContainer.style.left = 'auto';
-    sliderContainer.classList.add('ig-right-aligned');
-    sliderContainer.classList.remove('ig-left-aligned');
-  }
-}
-
-// --- ИНЪЕКЦИЯ СЛАЙДЕРА ---
-function injectSliderNextTo(video, nativeBtn) {
-  // Проверяем наличие слайдера напрямую по его связи с текущим видео и кнопкой в DOM
-  if (video._sliderContainer && video._sliderContainer.isConnected && video._nativeMuteBtn === nativeBtn) {
-    return;
-  }
+// --- НАСТРОЙКА СЛУШАТЕЛЕЙ ВИДЕО ---
+function setupVideoListeners(video) {
+  if (video._hasVolumeChangeListener) return;
+  video._hasVolumeChangeListener = true;
 
   activeVideos.add(video);
-  video._nativeMuteBtn = nativeBtn;
-  video._lastBtnRect = null; // СБРОС КЭША: принудительно пересчитываем координаты для нового слайда
 
-  // Слайдер крепится к общему контейнеру, чтобы быть выше защитных слоев
-  const container = findCommonAncestor(video, nativeBtn);
+  // ГАРАНТИЯ СКОРОСТИ: Принудительный сброс/установка скорости на ключевых этапах инициализации медиа-потока.
+  const enforceSpeed = () => {
+    const isVideoReel = checkIsReel(video);
+    const targetSpeed = isVideoReel ? globalPlaybackSpeed : 1.0;
 
-  const containerStyle = window.getComputedStyle(container);
-  if (containerStyle.position === 'static') {
-    container.style.position = 'relative';
-  }
-  container.style.overflow = 'visible'; // Предотвращаем обрезку слайдера
-
-  const sliderContainer = document.createElement('div');
-  sliderContainer.className = 'ig-volume-slider-container';
-
-  // Принудительно выводим слайдер на самый верхний слой (поверх градиента)
-  sliderContainer.style.position = 'absolute';
-  sliderContainer.style.zIndex = '2147483647';
-  sliderContainer.style.pointerEvents = 'auto';
-
-  sliderContainer.innerHTML = `
-    <input type="range" class="ig-volume-slider" min="0" max="1" step="0.01" value="${globalSliderValue}">
-  `;
-
-  video._sliderContainer = sliderContainer;
-  container.appendChild(sliderContainer);
-
-  const slider = sliderContainer.querySelector('.ig-volume-slider');
-  updateSliderGradient(slider, globalSliderValue);
-
-  updateSliderPosition(video, nativeBtn, sliderContainer);
-
-  const sliderCaptureEvents = ['click', 'dragstart', 'selectstart'];
-  sliderCaptureEvents.forEach(eventName => {
-    sliderContainer.addEventListener(eventName, (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-    }, { capture: true });
-  });
-
-  slider.addEventListener('dragstart', (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-  }, { capture: true });
-
-  const sliderBubbleEvents = ['mousedown', 'mouseup', 'pointerdown', 'pointerup'];
-  sliderBubbleEvents.forEach(eventName => {
-    sliderContainer.addEventListener(eventName, (e) => {
-      e.stopPropagation();
-    });
-  });
-
-  slider.addEventListener('click', (e) => {
-    lastUserInteractionTime = Date.now();
-    e.stopPropagation();
-    e.preventDefault();
-  });
-  slider.addEventListener('mousedown', (e) => {
-    lastUserInteractionTime = Date.now();
-    e.stopPropagation();
-  });
-  slider.addEventListener('pointerdown', (e) => {
-    lastUserInteractionTime = Date.now();
-    e.stopPropagation();
-  });
-
-  let hideTimer = null;
-
-  function showSlider() {
-    clearTimeout(hideTimer);
-    updateSliderPosition(video, nativeBtn, sliderContainer);
-    sliderContainer.classList.add('ig-expanded');
-  }
-
-  function hideSlider() {
-    hideTimer = setTimeout(() => {
-      if (!nativeBtn.matches(':hover') && !sliderContainer.matches(':hover')) {
-        sliderContainer.classList.remove('ig-expanded');
-      }
-    }, 600);
-  }
-  // Удаляем старые обработчики с кнопки во избежание их накопления при повторной инъекции
-  if (nativeBtn._oldShowSlider) nativeBtn.removeEventListener('mouseenter', nativeBtn._oldShowSlider);
-  if (nativeBtn._oldHideSlider) nativeBtn.removeEventListener('mouseleave', nativeBtn._oldHideSlider);
-  if (nativeBtn._oldClickHandler) nativeBtn.removeEventListener('click', nativeBtn._oldClickHandler, { capture: true });
-
-  nativeBtn._oldShowSlider = showSlider;
-  nativeBtn._oldHideSlider = hideSlider;
-
-  nativeBtn.addEventListener('mouseenter', showSlider);
-  nativeBtn.addEventListener('mouseleave', hideSlider);
-
-  sliderContainer.addEventListener('mouseenter', showSlider);
-  sliderContainer.addEventListener('mouseleave', hideSlider);
-
-  const clickHandler = () => {
-    if (nativeBtn._ignoreClick) return;
-    lastUserInteractionTime = Date.now();
-
-    video._ignoreMuteBtnSync = true;
-    setTimeout(() => {
-      video._ignoreMuteBtnSync = false;
-    }, 10);
-
-    const iconShowsMuted = isNativeButtonMuted(nativeBtn, video);
-    globalMuted = !iconShowsMuted;
-
-    saveSettings();
-    syncAllVideos();
-  };
-
-  nativeBtn._oldClickHandler = clickHandler;
-  nativeBtn.addEventListener('click', clickHandler, { capture: true, passive: true });
-
-  slider.addEventListener('input', (e) => {
-    lastUserInteractionTime = Date.now();
-    globalSliderValue = parseFloat(e.target.value);
-
-    updateSliderGradient(e.target, globalSliderValue);
-
-    if (globalSliderValue > 0) {
-      globalMuted = false;
+    const originalSetter = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate').set;
+    if (originalSetter) {
+      originalSetter.call(video, targetSpeed);
     } else {
-      globalMuted = true;
+      video.playbackRate = targetSpeed;
     }
-    saveSettings();
-    syncAllVideos();
-    syncNativeButtonMuteState(video);
-  });
 
-  // Предотвращаем застревание фокуса на ползунке во избежание блокировки клавиши ArrowDown
-  const blurSlider = () => {
-    if (document.activeElement === slider) {
-      slider.blur();
+    if (!video._hasDoneSpeedPipelineFlush && !video.paused && video.readyState >= 2) {
+      video._hasDoneSpeedPipelineFlush = true;
+      const curTime = video.currentTime;
+      video.currentTime = curTime > 0 ? curTime : 0.001;
     }
   };
-  slider.addEventListener('mouseup', blurSlider);
-  slider.addEventListener('pointerup', blurSlider);
-  slider.addEventListener('touchend', blurSlider);
+
+  video.addEventListener('play', enforceSpeed, { passive: true });
+  video.addEventListener('playing', enforceSpeed, { passive: true });
+  video.addEventListener('loadedmetadata', enforceSpeed, { passive: true });
+  video.addEventListener('loadeddata', enforceSpeed, { passive: true });
+  video.addEventListener('canplay', enforceSpeed, { passive: true });
+
+  video.addEventListener('volumechange', () => {
+    if (video._ignoreVolumechange) return;
+
+    if (video._volumechangeEventTimer) {
+      clearTimeout(video._volumechangeEventTimer);
+    }
+
+    video._volumechangeEventTimer = setTimeout(() => {
+      // Сохраняем громкость, заданную пользователем через нативный интерфейс
+      globalSliderValue = Math.sqrt(video.volume);
+      globalMuted = video.muted || video.volume === 0;
+      saveSettings();
+
+      // Синхронизируем громкость на всех остальных видео
+      syncAllVideos();
+      video._volumechangeEventTimer = null;
+    }, 10);
+  });
+
+  video.addEventListener('play', () => {
+    if (hasUserInteracted()) {
+      video._ignoreVolumechange = true;
+      const targetVol = globalMuted ? 0 : Math.pow(globalSliderValue, 2);
+      video.volume = targetVol;
+      syncNativeButtonMuteState(video);
+      setTimeout(() => {
+        video._ignoreVolumechange = false;
+      }, 10);
+    }
+  });
 
   const handleWheel = (e) => {
     if (video.paused) return;
@@ -900,152 +756,18 @@ function injectSliderNextTo(video, nativeBtn) {
 
     const delta = e.deltaY < 0 ? 0.05 : -0.05;
     globalSliderValue = Math.max(0, Math.min(1, globalSliderValue + delta));
-    if (globalSliderValue > 0) {
-      globalMuted = false;
-    } else {
-      globalMuted = true;
-    }
+    globalMuted = globalSliderValue === 0;
 
     saveSettings();
     syncAllVideos();
     syncNativeButtonMuteState(video);
   };
 
-  // Удаляем старый обработчик wheel перед регистрацией нового, чтобы не дублировать их на одном элементе видео
   if (video._oldHandleWheel) {
     video.removeEventListener('wheel', video._oldHandleWheel, { capture: true });
   }
   video._oldHandleWheel = handleWheel;
   video.addEventListener('wheel', handleWheel, { passive: false, capture: true });
-
-  sliderContainer.addEventListener('wheel', handleWheel, { passive: false });
-
-  // Изолированный перехват первого клика строго на уровне локального контейнера плеера
-  const clickTarget = video.parentElement || video;
-  if (!clickTarget._hasFirstClickUnmuteListener) {
-    clickTarget._hasFirstClickUnmuteListener = true;
-    clickTarget.addEventListener('click', (e) => {
-      const nativeBtn = video._nativeMuteBtn || findNativeMuteButton(video);
-      const actionBar = video._cachedActionBar || findReelsActionBar(video);
-
-      // Проверяем, совершен ли клик по элементам управления звуком или панели скорости
-      const isControlClick =
-        (nativeBtn && (nativeBtn === e.target || nativeBtn.contains(e.target))) ||
-        (actionBar && actionBar.contains(e.target)) ||
-        e.target.closest('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-action-item, input[type="range"]');
-
-      if (isControlClick) return;
-
-      if (!firstUnmuteTriggered) {
-        const iconShowsMuted = nativeBtn ? isNativeButtonMuted(nativeBtn, video) : false;
-
-        if (iconShowsMuted) {
-          e.preventDefault();
-          e.stopPropagation(); // Блокируем нативную паузу для первого разблокирования звука
-
-          firstUnmuteTriggered = true;
-          lastUserInteractionTime = Date.now();
-          globalMuted = false;
-          saveSettings();
-
-          if (nativeBtn) {
-            safeClick(nativeBtn); // Активируем звук
-          }
-        } else {
-          firstUnmuteTriggered = true;
-        }
-      }
-    }, { capture: true });
-  }
-
-  if (!video._hasVolumeChangeListener) {
-    video._hasVolumeChangeListener = true;
-
-    // ГАРАНТИЯ СКОРОСТИ: Принудительный сброс/установка скорости на ключевых этапах инициализации медиа-потока.
-    const enforceSpeed = () => {
-      const isVideoReel = checkIsReel(video);
-      const targetSpeed = isVideoReel ? globalPlaybackSpeed : 1.0;
-
-      const originalSetter = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate').set;
-      if (originalSetter) {
-        originalSetter.call(video, targetSpeed);
-      } else {
-        video.playbackRate = targetSpeed;
-      }
-
-      // АППАРАТНЫЙ ХАК: Выполняем микро-seek только когда видео АКТИВНО воспроизводится (!video.paused),
-      // так как только при запущенном аудио-конвейере декодер Chromium сбрасывает буфер скорости.
-      if (!video._hasDoneSpeedPipelineFlush && !video.paused && video.readyState >= 2) {
-        video._hasDoneSpeedPipelineFlush = true;
-        const curTime = video.currentTime;
-        video.currentTime = curTime > 0 ? curTime : 0.001;
-      }
-    };
-
-    // Навешиваем жесткую сверку скорости на всю цепочку загрузки и старта медиа
-    video.addEventListener('play', enforceSpeed, { passive: true });
-    video.addEventListener('playing', enforceSpeed, { passive: true });
-    video.addEventListener('loadedmetadata', enforceSpeed, { passive: true });
-    video.addEventListener('loadeddata', enforceSpeed, { passive: true });
-    video.addEventListener('canplay', enforceSpeed, { passive: true });
-
-    video.addEventListener('volumechange', () => {
-      if (video._ignoreVolumechange) return;
-
-      if (hasUserInteracted()) {
-        if (video._volumechangeEventTimer) {
-          clearTimeout(video._volumechangeEventTimer);
-        }
-
-        video._volumechangeEventTimer = setTimeout(() => {
-          video._ignoreVolumechange = true;
-          video.volume = globalMuted ? 0 : Math.pow(globalSliderValue, 2);
-
-          const container = video._sliderContainer;
-          if (container) {
-            const sld = container.querySelector('.ig-volume-slider');
-            if (sld) {
-              sld.value = globalSliderValue;
-              updateSliderGradient(sld, globalSliderValue);
-            }
-          }
-
-          if (video._ignoreVolumechangeResetTimer) {
-            clearTimeout(video._ignoreVolumechangeResetTimer);
-          }
-          video._ignoreVolumechangeResetTimer = setTimeout(() => {
-            video._ignoreVolumechange = false;
-            video._ignoreVolumechangeResetTimer = null;
-          }, 10); // Сокращено до 10мс для моментального отклика слайдера
-
-          video._volumechangeEventTimer = null;
-        }, 10); // Сокращено до 10мс
-      }
-    });
-
-    video.addEventListener('play', () => {
-      // Управление громкостью (активируется после первого взаимодействия пользователя)
-      if (hasUserInteracted()) {
-        video._ignoreVolumechange = true;
-        const targetVol = globalMuted ? 0 : Math.pow(globalSliderValue, 2);
-        video.volume = targetVol;
-
-        const sc = video._sliderContainer;
-        if (sc) {
-          const sld = sc.querySelector('.ig-volume-slider');
-          if (sld) {
-            sld.value = globalSliderValue;
-            updateSliderGradient(sld, globalSliderValue);
-          }
-        }
-        setTimeout(() => {
-          video._ignoreVolumechange = false;
-        }, 10);
-      }
-    });
-  }
-
-  syncAllVideos();
 }
 
 // --- ИНЪЕКЦИЯ СКРУББЕРА (ПРОГРЕСС-БАРА) ---
@@ -1699,36 +1421,6 @@ function clearOverlayInterference(video) {
   }
 }
 
-// --- СКРЫТИЕ НАТИВНОГО ВЕРТИКАЛЬНОГО СЛАЙДЕРА ---
-function hideNativeVerticalSlider(video, currentBtn) {
-  if (!currentBtn || !currentBtn.isConnected) return;
-
-  let parent = currentBtn.parentElement;
-  for (let depth = 0; depth < 2 && parent; depth++) {
-    const siblings = parent.children;
-    for (let i = 0; i < siblings.length; i++) {
-      const sibling = siblings[i];
-      if (
-        sibling !== currentBtn &&
-        !sibling.classList.contains('ig-volume-slider-container') &&
-        !sibling.classList.contains('ig-video-scrubber-container') &&
-        !sibling.contains(currentBtn)
-      ) {
-        const style = window.getComputedStyle(sibling);
-        const isAbsolute = style.position === 'absolute' || style.position === 'fixed';
-        const height = parseFloat(style.height) || 0;
-        const width = parseFloat(style.width) || 0;
-        const isVertical = height > width && height > 40;
-
-        if (isAbsolute && isVertical) {
-          sibling.style.setProperty('display', 'none', 'important');
-        }
-      }
-    }
-    parent = parent.parentElement;
-  }
-}
-
 // --- MUTATION OBSERVER ---
 function scanAndInject() {
   // Самоликвидация: если расширение перезагружено, останавливаем старые фоновые интервалы и очищаем стили
@@ -1739,6 +1431,9 @@ function scanAndInject() {
     if (style) style.remove();
     return;
   }
+
+  // Очистка любых старых слайдеров, оставшихся в DOM
+  document.querySelectorAll('.ig-volume-slider-container').forEach(el => el.remove());
 
   // Сбрасываем флаг первого клика для размьюта при переходе между разделами (например, профиль -> рилс)
   if (lastGlobalPath !== window.location.pathname) {
@@ -1863,8 +1558,51 @@ function scanAndInject() {
       }
     }
 
-    // Получаем текущий контейнер плеера для валидации кэшированных элементов
+    // Настраиваем слушатели громкости, колесика мыши и скорости на самом видео
+    setupVideoListeners(video);
+
+    // Получаем текущий контейнер плеера для первого клика и валидации
     const playerContainer = video.closest('section, [role="dialog"], article, .x17505xr, .x10b77sg') || video.parentElement;
+
+    // Изолированный перехват первого клика строго на уровне локального контейнера плеера
+    if (playerContainer && !playerContainer._hasFirstClickUnmuteListener) {
+      playerContainer._hasFirstClickUnmuteListener = true;
+      playerContainer.addEventListener('click', (e) => {
+        const activeVideo = playerContainer.querySelector('video');
+        if (!activeVideo) return;
+
+        const nativeBtn = activeVideo._nativeMuteBtn || findNativeMuteButton(activeVideo);
+        const actionBar = activeVideo._cachedActionBar || findReelsActionBar(activeVideo);
+
+        // Проверяем, совершен ли клик по элементам управления звуком (кнопка, слайдер) или панели скорости
+        const isControlClick =
+          (nativeBtn && nativeBtn.parentElement && nativeBtn.parentElement.contains(e.target)) ||
+          (actionBar && actionBar.contains(e.target)) ||
+          e.target.closest('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-action-item, input[type="range"]');
+
+        if (isControlClick) return;
+
+        if (!firstUnmuteTriggered) {
+          const iconShowsMuted = nativeBtn ? isNativeButtonMuted(nativeBtn, activeVideo) : false;
+
+          if (iconShowsMuted) {
+            e.preventDefault();
+            e.stopPropagation(); // Блокируем нативную паузу для первого разблокирования звука
+
+            firstUnmuteTriggered = true;
+            lastUserInteractionTime = Date.now();
+            globalMuted = false;
+            saveSettings();
+
+            if (nativeBtn) {
+              safeClick(nativeBtn); // Активируем звук
+            }
+          } else {
+            firstUnmuteTriggered = true;
+          }
+        }
+      }, { capture: true });
+    }
 
     // Оптимизация: берем кнопку из кэша, если она все еще валидна, подключена к DOM и находится в текущем контейнере
     let currentBtn = video._nativeMuteBtn;
@@ -1876,32 +1614,32 @@ function scanAndInject() {
     }
 
     if (currentBtn) {
-      // Скрываем нативный вертикальный слайдер звука
-      hideNativeVerticalSlider(video, currentBtn);
-
-      // Определяем ожидаемый родительский контейнер для слайдера и скруббера
-      const expectedParent = findCommonAncestor(video, currentBtn) || video.parentElement;
-
-      // Внедряем слайдер громкости (пересоздаем его, если он удален, кнопка изменилась или родительский контейнер устарел)
-      if (!video._sliderContainer || !video._sliderContainer.isConnected || video._nativeMuteBtn !== currentBtn || video._sliderContainer.parentElement !== expectedParent) {
-        if (video._sliderContainer) {
-          video._sliderContainer.remove();
-          video._sliderContainer = null;
-        }
-
-        injectSliderNextTo(video, currentBtn);
-      } else {
-        // Оптимизация производительности: пересчитываем позицию слайдера только когда он развернут/виден
-        if (video._sliderContainer.classList.contains('ig-expanded')) {
-          updateSliderPosition(video, currentBtn, video._sliderContainer);
-        }
-
-        // ГАРАНТИЯ СЛОЕВ: Сдвигаем слайдер в самый конец контейнера, чтобы новые слои React не перекрывали его hover
-        const parent = video._sliderContainer.parentElement;
-        if (parent && parent.lastElementChild !== video._sliderContainer) {
-          parent.appendChild(video._sliderContainer);
-        }
+      // Вешаем обработчик клика на нативную кнопку звука для сохранения настроек
+      if (currentBtn._oldClickHandler) {
+        currentBtn.removeEventListener('click', currentBtn._oldClickHandler, { capture: true });
       }
+
+      const clickHandler = () => {
+        if (currentBtn._ignoreClick) return;
+        lastUserInteractionTime = Date.now();
+
+        video._ignoreMuteBtnSync = true;
+        setTimeout(() => {
+          video._ignoreMuteBtnSync = false;
+        }, 10);
+
+        const iconShowsMuted = isNativeButtonMuted(currentBtn, video);
+        globalMuted = !iconShowsMuted;
+
+        saveSettings();
+        syncAllVideos();
+      };
+
+      currentBtn._oldClickHandler = clickHandler;
+      currentBtn.addEventListener('click', clickHandler, { capture: true, passive: true });
+
+      // Определяем ожидаемый родительский контейнер для скруббера
+      const expectedParent = findCommonAncestor(video, currentBtn) || video.parentElement;
 
       // Внедряем скруббер (перемотку) в тот же верхний контейнер, когда кнопка звука найдена
       if (!video._hasScrubber || !video._scrubberContainer || !video._scrubberContainer.isConnected || video._scrubberContainer.parentElement !== expectedParent) {
