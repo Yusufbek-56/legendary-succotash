@@ -17,7 +17,7 @@ export function syncAllVideos() {
 
     video._ignoreVolumechange = true;
 
-    if (hasUserInteracted()) {
+    if (hasUserInteracted() && state.firstUnmuteTriggered) {
       const targetVolume = state.globalMuted ? 0 : Math.pow(state.globalSliderValue, 2);
       video.volume = targetVolume;
     }

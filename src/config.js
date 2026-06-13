@@ -24,9 +24,6 @@ export function loadSettings() {
         if (data.igGlobalMuted !== undefined) state.globalMuted = !!data.igGlobalMuted;
         if (data.igPlaybackSpeed !== undefined) state.globalPlaybackSpeed = parseFloat(data.igPlaybackSpeed);
         if (data.igAutoSkip !== undefined) state.globalAutoSkip = !!data.igAutoSkip;
-        if (data.igGlobalVolume !== undefined || data.igGlobalMuted !== undefined) {
-          state.lastUserInteractionTime = Date.now();
-        }
         import('./sync.js').then(m => m.syncAllVideos());
       });
     }

@@ -34,7 +34,6 @@ export function scanAndInject() {
 
   if (state.lastGlobalPath !== window.location.pathname) {
     state.lastGlobalPath = window.location.pathname;
-    state.firstUnmuteTriggered = false;
   }
 
   document.querySelectorAll('video').forEach(video => {
@@ -350,5 +349,6 @@ document.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
   if (['m', 'arrowup', 'arrowdown'].includes(key)) {
     state.lastUserInteractionTime = Date.now();
+    state.firstUnmuteTriggered = true;
   }
 }, { capture: true, passive: true });

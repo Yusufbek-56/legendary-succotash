@@ -53,7 +53,7 @@ export function setupVideoListeners(video) {
   });
 
   video.addEventListener('play', () => {
-    if (hasUserInteracted()) {
+    if (hasUserInteracted() && state.firstUnmuteTriggered) {
       video._ignoreVolumechange = true;
       const targetVol = state.globalMuted ? 0 : Math.pow(state.globalSliderValue, 2);
       video.volume = targetVol;
@@ -70,6 +70,7 @@ export function setupVideoListeners(video) {
     e.stopPropagation();
 
     state.lastUserInteractionTime = Date.now();
+    state.firstUnmuteTriggered = true;
 
     const delta = e.deltaY < 0 ? 0.05 : -0.05;
     state.globalSliderValue = Math.max(0, Math.min(1, state.globalSliderValue + delta));
