@@ -64,7 +64,7 @@ function sleep(ms) {
       if (
         url.includes('instagram.com/reels/test/') ||
         url.includes('instagram.com/stories/test/') ||
-        url.includes('instagram.com/p/test/')
+        url.includes('instagram.com/p/test')
       ) {
         const mockHtmlPath = path.join(__dirname, 'mock.html');
         const mockHtml = fs.readFileSync(mockHtmlPath, 'utf8');
@@ -244,6 +244,16 @@ function sleep(ms) {
     console.log('[TEST 2] Menu exists after click outside:', menuExists);
     if (menuExists) throw new Error('Stories: Menu did not close on clicking outside');
 
+    // Verify that the close button overlay is not blocked (pointer-events is not 'none')
+    const closeBtnPointerEvents = await page.evaluate(() => {
+      const overlay = document.querySelector('.story-close-overlay');
+      return window.getComputedStyle(overlay).pointerEvents;
+    });
+    console.log('[TEST 2] Story close overlay pointer-events:', closeBtnPointerEvents);
+    if (closeBtnPointerEvents === 'none') {
+      throw new Error('Stories: Close button overlay has pointer-events: none (is blocked)!');
+    }
+
     await page.screenshot({ path: path.join(__dirname, 'stories_success.png') });
     console.log('[TEST 2] Screenshot saved to stories_success.png');
 
@@ -323,6 +333,69 @@ function sleep(ms) {
 
     await page.screenshot({ path: path.join(__dirname, 'feed_success.png') });
     console.log('[TEST 3] Screenshot saved to feed_success.png');
+
+    // ==========================================
+    // --- TEST 4: FEED POST MODE (NO NATIVE MUTE BUTTON) ---
+    // ==========================================
+    console.log('\n==========================================');
+    console.log('[TEST 4] Testing Feed Post Mode (No Native Mute)...');
+    console.log('==========================================');
+
+    await page.goto('https://www.instagram.com/p/test-no-mute/', { waitUntil: 'load' });
+    await page.addStyleTag({ path: path.join(__dirname, 'content.css') });
+    await page.addScriptTag({ path: path.join(__dirname, 'content.js') });
+
+    console.log('[TEST 4] Waiting for script injection...');
+    await sleep(2000);
+
+    const feedNoMuteSpeedBtnExists = await page.evaluate(() => {
+      const btn = document.querySelector('#feed-container .ig-feed-speed-btn');
+      return !!btn;
+    });
+
+    console.log('[TEST 4] Feed speed button injected (no native mute context):', feedNoMuteSpeedBtnExists);
+    if (!feedNoMuteSpeedBtnExists) {
+      throw new Error('Feed Post (No Mute): Speed button not injected!');
+    }
+
+    // Verify positioning fallback (should be at bottom 12px, right 12px)
+    const feedNoMuteSpeedBtnPos = await page.evaluate(() => {
+      const btn = document.querySelector('#feed-container .ig-feed-speed-btn');
+      return {
+        bottom: btn.style.bottom,
+        right: btn.style.right
+      };
+    });
+    console.log('[TEST 4] Feed speed button fallback positioning:', feedNoMuteSpeedBtnPos);
+    if (feedNoMuteSpeedBtnPos.bottom !== '12px' || feedNoMuteSpeedBtnPos.right !== '12px') {
+      throw new Error('Feed Post (No Mute): Speed button does not have correct fallback styles (bottom: 12px, right: 12px)!');
+    }
+
+    // Click to open menu
+    console.log('[TEST 4] Clicking Feed speed button to open menu...');
+    await page.click('#feed-container .ig-feed-speed-btn');
+    await sleep(300);
+
+    menuExists = await page.evaluate(() => !!document.querySelector('.ig-speed-menu'));
+    console.log('[TEST 4] Feed Speed menu exists:', menuExists);
+    if (!menuExists) throw new Error('Feed Post (No Mute): Speed menu did not open');
+
+    // Select 1.5x speed
+    console.log('[TEST 4] Selecting 1.5x speed from menu...');
+    await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll('.ig-speed-menu-item'));
+      const target = items.find(el => el.textContent.trim() === '1.5x');
+      if (target) target.click();
+    });
+    await sleep(300);
+
+    const feedNoMuteSpeed = await page.evaluate(() => {
+      const video = document.querySelector('video');
+      const btn = document.querySelector('#feed-container .ig-feed-speed-btn');
+      return { rate: video.playbackRate, text: btn.textContent, isActive: btn.classList.contains('ig-speed-active') };
+    });
+    console.log('[TEST 4] After selecting 1.5x (no native mute context):', feedNoMuteSpeed);
+    if (feedNoMuteSpeed.rate !== 1.5) throw new Error('Feed Post (No Mute): Expected playback rate 1.5, got ' + feedNoMuteSpeed.rate);
 
     console.log('\n--- ALL TESTS COMPLETED SUCCESSFULLY ---');
   } catch (error) {

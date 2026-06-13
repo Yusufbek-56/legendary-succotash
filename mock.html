@@ -169,20 +169,26 @@
               <button class="story-btn" aria-label="More options">⋯</button>
             </div>
           </div>
+          <div class="story-close-overlay" style="position: absolute; top: 15px; right: 55px; z-index: 120; width: 32px; height: 32px;">
+            <button class="story-btn close-btn" aria-label="Close" style="background: none; border: none; color: white; cursor: pointer; font-size: 20px;">✕</button>
+          </div>
         </section>
       `;
     } else if (path.includes('/p/')) {
       // Feed post layout
+      const hasMute = !path.includes('no-mute');
       html = `
         <article class="container" id="feed-container">
           <video src="https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-against-the-sky-42436-large.mp4" loop muted playsinline></video>
-          <div class="label-indicator">Feed Post Mode</div>
+          <div class="label-indicator">Feed Post Mode ${hasMute ? '' : '(No Mute)'}</div>
           <div class="feed-post-overlay">
+            ${hasMute ? `
             <button class="native-mute-btn" aria-label="Unmute">
               <svg viewBox="0 0 24 24" width="18" height="18">
                 <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"></path>
               </svg>
             </button>
+            ` : ''}
           </div>
         </article>
       `;

@@ -82,6 +82,15 @@ function isScriptOrphaned() {
   }
 }
 
+// --- ХЕЛПЕР ГЕОМЕТРИИ КЛИКА ВНУТРИ ЭЛЕМЕНТА ---
+function isClickInsideElement(e, element) {
+  if (!element) return false;
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 &&
+         e.clientX >= rect.left && e.clientX <= rect.right &&
+         e.clientY >= rect.top && e.clientY <= rect.bottom;
+}
+
 // --- ГЛОБАЛЬНЫЕ НАСТРОЙКИ ---
 let globalSliderValue = 0.8;
 let globalMuted = false;
@@ -208,23 +217,42 @@ function showSpeedMenu(anchorBtn, video) {
 
   document.body.appendChild(menu);
 
-  // Position the menu near the anchor
+  // Position the menu above the scrubber (or near the anchor as fallback)
   const updateMenuPosition = () => {
-    if (!anchorBtn.isConnected || !menu.isConnected) {
+    if (!menu.isConnected || (video && !video.isConnected)) {
       closeSpeedMenu();
       return;
     }
-    const rect = anchorBtn.getBoundingClientRect();
     const menuWidth = 110;
     const menuHeight = menu.offsetHeight || 250;
-    
-    // Default position: above the button
-    let top = rect.top - menuHeight - 8;
-    let left = rect.left + (rect.width - menuWidth) / 2;
 
-    // If it doesn't fit on top, display below the button
+    const scrubber = video && video._scrubberContainer;
+    let top, left;
+
+    const useScrubber = checkIsStory(video) && scrubber && scrubber.isConnected;
+
+    if (useScrubber) {
+      const scrubberRect = scrubber.getBoundingClientRect();
+      top = scrubberRect.top - menuHeight - 8;
+      left = scrubberRect.left + (scrubberRect.width - menuWidth) / 2;
+    } else if (anchorBtn && anchorBtn.isConnected) {
+      const rect = anchorBtn.getBoundingClientRect();
+      top = rect.top - menuHeight - 8;
+      left = rect.left + (rect.width - menuWidth) / 2;
+    } else {
+      closeSpeedMenu();
+      return;
+    }
+
+    // Safeguard vertical overflow (if off screen at top, display below)
     if (top < 10) {
-      top = rect.bottom + 8;
+      if (useScrubber) {
+        const scrubberRect = scrubber.getBoundingClientRect();
+        top = scrubberRect.bottom + 8;
+      } else if (anchorBtn && anchorBtn.isConnected) {
+        const rect = anchorBtn.getBoundingClientRect();
+        top = rect.bottom + 8;
+      }
     }
 
     // Keep horizontal boundaries
@@ -285,6 +313,9 @@ function isMainPlayer(video) {
   if (isProfile || isExplore) {
     return false;
   }
+
+  // Если мы на прямой странице поста (/p/...) — всегда обрабатываем
+  if (path.includes('/p/')) return true;
 
   // На стандартных страницах (лента новостей, Reels) обрабатываем только Reels и посты в ленте
   return (
@@ -727,6 +758,9 @@ function setupStoryViewportClick(video) {
     // Находим активное видео внутри карточки прямо в момент клика
     const activeVideo = viewport.querySelector('video');
     if (!activeVideo) return;
+
+    // Игнорируем любые клики вне физической области карточки сторис (навигационные стрелки по бокам и т.д.)
+    if (!isClickInsideElement(e, activeVideo.parentElement || activeVideo)) return;
 
     // Сначала проверяем клик по кнопке скорости сторис
     const speedBtnEl = e.target.closest('.ig-inline-speed-btn');
@@ -1283,7 +1317,6 @@ function injectFeedSpeedButton(video, nativeMuteBtn) {
   // Только для видео в article или dialog
   const container = video.closest('article, [role="dialog"]');
   if (!container) return;
-  if (!nativeMuteBtn || !nativeMuteBtn.isConnected) return;
 
   video._hasFeedSpeedBtn = true;
 
@@ -1317,28 +1350,50 @@ function injectFeedSpeedButton(video, nativeMuteBtn) {
     opacity: 1;
   `;
 
-  // Позиционируем слева от кнопки мьюта
-  const muteRect = nativeMuteBtn.getBoundingClientRect();
-  const videoRect = video.getBoundingClientRect();
+  let mountParent;
+  let updateFeedSpeedPos;
 
-  // Монтируем в общий предок video и muteBtn
-  const mountParent = findCommonAncestor(video, nativeMuteBtn) || video.parentElement;
-  const mountParentStyle = window.getComputedStyle(mountParent);
-  if (mountParentStyle.position === 'static') {
-    mountParent.style.position = 'relative';
+  if (nativeMuteBtn && nativeMuteBtn.isConnected) {
+    // Позиционируем слева от кнопки мьюта
+    const muteRect = nativeMuteBtn.getBoundingClientRect();
+    const videoRect = video.getBoundingClientRect();
+
+    // Монтируем в общий предок video и muteBtn
+    mountParent = findCommonAncestor(video, nativeMuteBtn) || video.parentElement;
+    const mountParentStyle = window.getComputedStyle(mountParent);
+    if (mountParentStyle.position === 'static') {
+      mountParent.style.position = 'relative';
+    }
+
+    mountParent.classList.add('ig-speed-parent');
+    mountParent.appendChild(speedBtn);
+
+    // Рассчитываем позицию: слева от кнопки мьюта
+    updateFeedSpeedPos = () => {
+      if (!speedBtn.isConnected || !nativeMuteBtn.isConnected) return;
+      const mR = nativeMuteBtn.getBoundingClientRect();
+      const pR = mountParent.getBoundingClientRect();
+      speedBtn.style.bottom = `${pR.bottom - mR.bottom + (mR.height - 28) / 2}px`;
+      speedBtn.style.right = `${pR.right - mR.left + 4}px`;
+    };
+  } else {
+    // Фоллбэк: позиционируем в правом нижнем углу видео
+    mountParent = video.parentElement || container;
+    const mountParentStyle = window.getComputedStyle(mountParent);
+    if (mountParentStyle.position === 'static') {
+      mountParent.style.position = 'relative';
+    }
+
+    mountParent.classList.add('ig-speed-parent');
+    mountParent.appendChild(speedBtn);
+
+    updateFeedSpeedPos = () => {
+      if (!speedBtn.isConnected) return;
+      speedBtn.style.bottom = '12px';
+      speedBtn.style.right = '12px';
+    };
   }
 
-  mountParent.classList.add('ig-speed-parent');
-  mountParent.appendChild(speedBtn);
-
-  // Рассчитываем позицию: слева от кнопки мьюта
-  const updateFeedSpeedPos = () => {
-    if (!speedBtn.isConnected || !nativeMuteBtn.isConnected) return;
-    const mR = nativeMuteBtn.getBoundingClientRect();
-    const pR = mountParent.getBoundingClientRect();
-    speedBtn.style.bottom = `${pR.bottom - mR.bottom + (mR.height - 28) / 2}px`;
-    speedBtn.style.right = `${pR.right - mR.left + 4}px`;
-  };
   updateFeedSpeedPos();
   video._updateFeedSpeedPos = updateFeedSpeedPos;
 
@@ -1403,13 +1458,17 @@ function injectExtraControls(video, cachedActionBar) {
         <line class="ig-speed-needle" x1="12" y1="15" x2="12" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="transform: rotate(${initialRotation}deg);" />
       </svg>
       <!-- Dropdown Menu -->
-      <div class="ig-speed-menu">
-        <div class="ig-speed-menu-item ${Math.abs(globalPlaybackSpeed - 0.25) < 0.01 ? 'active' : ''}" data-speed="0.25">0.25x</div>
-        <div class="ig-speed-menu-item ${Math.abs(globalPlaybackSpeed - 0.5) < 0.01 ? 'active' : ''}" data-speed="0.5">0.5x</div>
-        <div class="ig-speed-menu-item ${Math.abs(globalPlaybackSpeed - 1.0) < 0.01 ? 'active' : ''}" data-speed="1">1x</div>
-        <div class="ig-speed-menu-item ${Math.abs(globalPlaybackSpeed - 1.25) < 0.01 ? 'active' : ''}" data-speed="1.25">1.25x</div>
-        <div class="ig-speed-menu-item ${Math.abs(globalPlaybackSpeed - 1.5) < 0.01 ? 'active' : ''}" data-speed="1.5">1.5x</div>
-        <div class="ig-speed-menu-item ${Math.abs(globalPlaybackSpeed - 2.0) < 0.01 ? 'active' : ''}" data-speed="2">2x</div>
+      <div class="ig-reels-speed-menu">
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 0.25) < 0.01 ? 'active' : ''}" data-speed="0.25">0.25x</div>
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 0.5) < 0.01 ? 'active' : ''}" data-speed="0.5">0.5x</div>
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 0.75) < 0.01 ? 'active' : ''}" data-speed="0.75">0.75x</div>
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 1.0) < 0.01 ? 'active' : ''}" data-speed="1">1x</div>
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 1.25) < 0.01 ? 'active' : ''}" data-speed="1.25">1.25x</div>
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 1.5) < 0.01 ? 'active' : ''}" data-speed="1.5">1.5x</div>
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 1.75) < 0.01 ? 'active' : ''}" data-speed="1.75">1.75x</div>
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 2.0) < 0.01 ? 'active' : ''}" data-speed="2">2x</div>
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 2.5) < 0.01 ? 'active' : ''}" data-speed="2.5">2.5x</div>
+        <div class="ig-reels-speed-menu-item ${Math.abs(globalPlaybackSpeed - 3.0) < 0.01 ? 'active' : ''}" data-speed="3">3x</div>
       </div>
     </div>
     <span class="ig-control-label ig-speed-label">${globalPlaybackSpeed}x</span>
@@ -1447,7 +1506,7 @@ function injectExtraControls(video, cachedActionBar) {
   video._floatingControlsContainer = null;
 
   const speedBtn = speedItem.querySelector('.ig-speed-btn');
-  const speedMenu = speedItem.querySelector('.ig-speed-menu');
+  const speedMenu = speedItem.querySelector('.ig-reels-speed-menu');
 
   let menuTimer = null;
   let isOverSpeedArea = false;
@@ -1473,7 +1532,7 @@ function injectExtraControls(video, cachedActionBar) {
   speedMenu.addEventListener('mouseenter', markEnter);
   speedMenu.addEventListener('mouseleave', markLeave);
 
-  const menuItems = speedItem.querySelectorAll('.ig-speed-menu-item');
+  const menuItems = speedItem.querySelectorAll('.ig-reels-speed-menu-item');
   menuItems.forEach(item => {
     const selectSpeed = (e) => {
       e.stopPropagation();
@@ -1482,7 +1541,10 @@ function injectExtraControls(video, cachedActionBar) {
       globalPlaybackSpeed = speed;
       saveSettings();
       syncAllVideos();
-      // Меню больше не закрывается по таймеру при клике, позволяя удобно перекликивать скорости
+      
+      // Обновляем активный класс в меню
+      menuItems.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
     };
 
     item.addEventListener('mousedown', selectSpeed, { capture: true });
@@ -1741,12 +1803,33 @@ function clearOverlayInterference(video) {
         const isAbsoluteOrFixed = style.position === 'absolute' || style.position === 'fixed';
 
         const nativeMute = video._nativeMuteBtn || findNativeMuteButton(video);
-        const isCustomElement = sibling.classList.contains('ig-volume-slider-container') ||
+
+        // Проверяем, содержит ли элемент кнопку закрытия/выхода/назад (Close / X / Back)
+        const hasInteractiveButton = (() => {
+          const checkLabels = (el) => {
+            if (!el) return false;
+            const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
+            return label.includes('close') || label.includes('закрыть') || label.includes('exit') ||
+                   label.includes('dismiss') || label.includes('back') || label.includes('назад') ||
+                   label.includes('go back') || label.includes('вернуться');
+          };
+          if (checkLabels(sibling)) return true;
+          const interactiveChildren = sibling.querySelectorAll('button, [role="button"], a, [tabindex="0"]');
+          for (const child of interactiveChildren) {
+            if (checkLabels(child)) return true;
+          }
+          return false;
+        })();
+
+        const isCustomElement = hasInteractiveButton ||
+          sibling.classList.contains('ig-volume-slider-container') ||
           sibling.classList.contains('ig-video-scrubber-container') ||
           sibling.classList.contains('ig-inline-speed-btn') ||
           sibling.classList.contains('ig-feed-speed-btn') ||
           sibling.classList.contains('ig-action-item') ||
-          sibling.querySelector('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-inline-speed-btn, .ig-feed-speed-btn, .ig-action-item') ||
+          sibling.classList.contains('ig-speed-menu') ||
+          sibling.classList.contains('ig-reels-speed-menu') ||
+          sibling.querySelector('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-inline-speed-btn, .ig-feed-speed-btn, .ig-action-item, .ig-speed-menu, .ig-reels-speed-menu') ||
           (nativeMute && (sibling === nativeMute || sibling.contains(nativeMute)));
 
         // Если элемент абсолютный, не кастомный И стиль pointer-events еще НЕ равен 'none'
@@ -1920,16 +2003,24 @@ function scanAndInject() {
         const activeVideo = playerContainer.querySelector('video');
         if (!activeVideo) return;
 
+        // В сторис игнорируем клики вне физической области карточки (стрелки навигации по бокам, закрытие и т.д.)
+        if (checkIsStory(activeVideo) && !isClickInsideElement(e, activeVideo.parentElement || activeVideo)) return;
+
         const nativeBtn = activeVideo._nativeMuteBtn || findNativeMuteButton(activeVideo);
         const actionBar = activeVideo._cachedActionBar || findReelsActionBar(activeVideo);
 
-        // Проверяем, совершен ли клик по элементам управления звуком (кнопка, слайдер) или панели скорости
+        // Проверяем, совершен ли клик по элементам управления или нативным кнопкам (навигация, закрытие и т.д.)
         const isControlClick =
           (nativeBtn && nativeBtn.parentElement && nativeBtn.parentElement.contains(e.target)) ||
           (actionBar && actionBar.contains(e.target)) ||
-          e.target.closest('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-action-item, .ig-inline-speed-btn, input[type="range"]');
+          e.target.closest('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-action-item, .ig-inline-speed-btn, .ig-speed-menu, .ig-reels-speed-menu, input[type="range"]');
+
+        // Пропускаем клики по любым нативным кнопкам/ссылкам (навигация сторис, закрытие, share и т.д.)
+        const isNativeButtonClick = e.target.closest('button, [role="button"], a[href]');
+        const isOnMuteBtn = nativeBtn && (nativeBtn === e.target || nativeBtn.contains(e.target));
 
         if (isControlClick) return;
+        if (isNativeButtonClick && !isOnMuteBtn) return;
 
         if (!firstUnmuteTriggered) {
           const iconShowsMuted = nativeBtn ? isNativeButtonMuted(nativeBtn, activeVideo) : false;
@@ -1986,27 +2077,27 @@ function scanAndInject() {
 
       currentBtn._oldClickHandler = clickHandler;
       currentBtn.addEventListener('click', clickHandler, { capture: true, passive: true });
+    }
 
-      // Определяем ожидаемый родительский контейнер для скруббера
-      const expectedParent = findCommonAncestor(video, currentBtn) || video.parentElement;
+    // Определяем ожидаемый родительский контейнер для скруббера (работает даже при отсутствии native mute button)
+    const expectedParent = (currentBtn ? findCommonAncestor(video, currentBtn) : null) || video.parentElement;
 
-      // Внедряем скруббер (перемотку) в тот же верхний контейнер, когда кнопка звука найдена
-      if (!video._hasScrubber || !video._scrubberContainer || !video._scrubberContainer.isConnected || video._scrubberContainer.parentElement !== expectedParent) {
-        if (video._scrubberContainer) {
-          video._scrubberContainer.remove();
-          video._scrubberContainer = null;
-        }
-        video._hasScrubber = false;
-        injectScrubber(video);
-      } else {
-        // Обновляем геометрическую позицию и ширину скруббера под размеры видео
-        updateScrubberPosition(video, video._scrubberContainer);
+    // Внедряем скруббер (перемотку) в тот же верхний контейнер
+    if (!video._hasScrubber || !video._scrubberContainer || !video._scrubberContainer.isConnected || video._scrubberContainer.parentElement !== expectedParent) {
+      if (video._scrubberContainer) {
+        video._scrubberContainer.remove();
+        video._scrubberContainer = null;
+      }
+      video._hasScrubber = false;
+      injectScrubber(video);
+    } else {
+      // Обновляем геометрическую позицию и ширину скруббера под размеры видео
+      updateScrubberPosition(video, video._scrubberContainer);
 
-        // ГАРАНТИЯ СЛОЕВ: Удерживаем скруббер последним элементом, чтобы он всегда принимал ховер и клики
-        const parent = video._scrubberContainer.parentElement;
-        if (parent && parent.lastElementChild !== video._scrubberContainer) {
-          parent.appendChild(video._scrubberContainer);
-        }
+      // ГАРАНТИЯ СЛОЕВ: Удерживаем скруббер последним элементом, чтобы он всегда принимал ховер и клики
+      const parent = video._scrubberContainer.parentElement;
+      if (parent && parent.lastElementChild !== video._scrubberContainer) {
+        parent.appendChild(video._scrubberContainer);
       }
     }
 
@@ -2045,9 +2136,9 @@ function scanAndInject() {
       }
     }
 
-    // --- ИНЪЕКЦИЯ КНОПКИ СКОРОСТИ ДЛЯ FEED POSTS ---
-    const isFeedPost = !checkIsReel(video) && !checkIsStory(video) && (video.closest('article') || video.closest('[role="dialog"]'));
-    if (isFeedPost && currentBtn) {
+    // --- ИНЪЕКЦИЯ КНОПКИ СКОРОСТИ ДЛЯ FEED POSTS (И DIRECT POST PAGES) ---
+    const isFeedPost = !checkIsReel(video) && !checkIsStory(video);
+    if (isFeedPost) {
       // Проверяем валидность существующей кнопки
       if (video._feedSpeedBtn && !video._feedSpeedBtn.isConnected) {
         video._feedSpeedBtn = null;
