@@ -12,7 +12,6 @@ import { injectExtraControls } from './reels-controls.js';
 import { setupStoryViewportClick } from './story-controls.js';
 import { injectStorySpeedButton } from './story-speed.js';
 import { injectFeedSpeedButton } from './feed-controls.js';
-import { injectVolumeSlider } from './volume-slider.js';
 import { hasSpeedButtonInDOM, syncAllVideos } from './sync.js';
 
 injectCoreStyles();
@@ -157,36 +156,28 @@ export function scanAndInject() {
 
     setupVideoListeners(video);
 
-    const playerContainer = video.closest('section, [role="dialog"], article, .x17505xr, .x10b77sg') || video.parentElement;
+    const clickTarget = video.parentElement || video;
 
-    if (playerContainer && !playerContainer._hasFirstClickUnmuteListener) {
-      playerContainer._hasFirstClickUnmuteListener = true;
-      playerContainer.addEventListener('click', (e) => {
-        const activeVideo = playerContainer.querySelector('video');
-        if (!activeVideo) return;
+    if (clickTarget && !clickTarget._hasFirstClickUnmuteListener) {
+      clickTarget._hasFirstClickUnmuteListener = true;
+      clickTarget.addEventListener('click', (e) => {
+        const nativeBtn = video._nativeMuteBtn || findNativeMuteButton(video);
+        const actionBar = video._cachedActionBar || findReelsActionBar(video);
 
-        if (checkIsStory(activeVideo) && !isClickInsideElement(e, activeVideo.parentElement || activeVideo)) return;
-
-        const nativeBtn = activeVideo._nativeMuteBtn || findNativeMuteButton(activeVideo);
-        const actionBar = activeVideo._cachedActionBar || findReelsActionBar(activeVideo);
-
+        // Проверяем, совершен ли клик по элементам управления звуком или панели скорости
         const isControlClick =
-          (nativeBtn && nativeBtn.parentElement && nativeBtn.parentElement.contains(e.target)) ||
+          (nativeBtn && (nativeBtn === e.target || nativeBtn.contains(e.target))) ||
           (actionBar && actionBar.contains(e.target)) ||
           e.target.closest('.ig-volume-slider-container, .ig-video-scrubber-container, .ig-action-item, .ig-inline-speed-btn, .ig-speed-menu, .ig-reels-speed-menu, input[type="range"]');
 
-        const isNativeButtonClick = e.target.closest('button, [role="button"], a[href]');
-        const isOnMuteBtn = nativeBtn && (nativeBtn === e.target || nativeBtn.contains(e.target));
-
         if (isControlClick) return;
-        if (isNativeButtonClick && !isOnMuteBtn) return;
 
         if (!state.firstUnmuteTriggered) {
-          const iconShowsMuted = nativeBtn ? isNativeButtonMuted(nativeBtn, activeVideo) : false;
+          const iconShowsMuted = nativeBtn ? isNativeButtonMuted(nativeBtn, video) : false;
 
           if (iconShowsMuted) {
             e.preventDefault();
-            e.stopPropagation();
+            e.stopPropagation(); // Блокируем нативную паузу для первого разблокирования звука
 
             state.firstUnmuteTriggered = true;
             state.lastUserInteractionTime = Date.now();
@@ -194,7 +185,7 @@ export function scanAndInject() {
             saveSettings();
 
             if (nativeBtn) {
-              safeClick(nativeBtn);
+              safeClick(nativeBtn); // Активируем звук
             }
           } else {
             state.firstUnmuteTriggered = true;
@@ -204,7 +195,7 @@ export function scanAndInject() {
     }
 
     let currentBtn = video._nativeMuteBtn;
-    if (!currentBtn || !currentBtn.isConnected || !playerContainer || !playerContainer.contains(currentBtn)) {
+    if (!currentBtn || !currentBtn.isConnected) {
       currentBtn = findNativeMuteButton(video);
       if (currentBtn) {
         video._nativeMuteBtn = currentBtn;
@@ -254,19 +245,10 @@ export function scanAndInject() {
       }
     }
 
-    if (currentBtn) {
-      if (!video._hasVolumeSlider || !video._sliderContainer || !video._sliderContainer.isConnected) {
-        if (video._sliderContainer) {
-          video._sliderContainer.remove();
-          video._sliderContainer = null;
-        }
-        video._hasVolumeSlider = false;
-        injectVolumeSlider(video, currentBtn);
-      }
-    }
+
 
     let actionBar = video._cachedActionBar;
-    if (!actionBar || !actionBar.isConnected || !playerContainer || !playerContainer.contains(actionBar)) {
+    if (!actionBar || !actionBar.isConnected) {
       actionBar = findReelsActionBar(video);
       if (actionBar) {
         video._cachedActionBar = actionBar;
