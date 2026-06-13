@@ -12,28 +12,22 @@
         "https://*.instagram.com/*"
       ],
       "js": [
-        "src/config.js",
-        "src/styles.js",
-        "src/utils.js",
-        "src/detection.js",
-        "src/native-button.js",
-        "src/speed-menu.js",
-        "src/scrubber.js",
-        "src/volume-slider.js",
-        "src/sync.js",
-        "src/story-controls.js",
-        "src/story-speed.js",
-        "src/feed-controls.js",
-        "src/reels-controls.js",
-        "src/overlay-shield.js",
-        "src/video-listeners.js",
-        "src/lifecycle.js"
+        "content.js"
       ],
       "css": [
         "content.css"
       ],
-      "type": "module",
       "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/*.js"
+      ],
+      "matches": [
+        "https://*.instagram.com/*"
+      ]
     }
   ],
   "icons": {

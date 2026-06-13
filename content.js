@@ -3,7 +3,13 @@
    Modular entry point for Chrome Manifest V3
    ========================================== */
 
-// All modules are loaded via manifest.json (type: module)
-// Each module has side effects on import and sets up the extension
-
-console.debug('[IG Volume] Extension modules loading...');
+(async () => {
+  try {
+    const isMock = typeof window !== 'undefined' && window.__IS_MOCK_TEST__;
+    const src = isMock ? './src/lifecycle.js' : chrome.runtime.getURL('src/lifecycle.js');
+    await import(src);
+    console.debug('[IG Volume] Extension modules loaded successfully.');
+  } catch (err) {
+    console.error('[IG Volume] Failed to load extension modules:', err);
+  }
+})();

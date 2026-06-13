@@ -17,7 +17,7 @@ export function injectStorySpeedButton(video) {
     : storySection.querySelectorAll('button, [role="button"]');
   if (headerButtons.length === 0) return;
 
-  const videoRect = video.getBoundingClientRect();
+  const containerRect = storySection.getBoundingClientRect();
   let rightmostBtn = null;
   let maxRight = -Infinity;
 
@@ -25,8 +25,8 @@ export function injectStorySpeedButton(video) {
     if (btn.closest('._ac7v')) continue;
     const rect = btn.getBoundingClientRect();
 
-    const inUpperThird = rect.top < videoRect.top + videoRect.height * 0.25;
-    const withinHorizontalBounds = rect.left >= videoRect.left - 10 && rect.right <= videoRect.right + 10;
+    const inUpperThird = rect.top < containerRect.top + containerRect.height * 0.25;
+    const withinHorizontalBounds = rect.left >= containerRect.left - 10 && rect.right <= containerRect.right + 10;
 
     if (inUpperThird && withinHorizontalBounds && rect.width > 0 && rect.width < 60) {
       if (rect.right > maxRight) {

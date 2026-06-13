@@ -57,11 +57,23 @@ function sleep(ms) {
       console.error(`[BROWSER ERROR]: ${err.message}`);
     });
 
-    // Intercept requests to mock all Instagram formats and serve our mock.html
+    // Intercept requests to mock all Instagram formats and serve our mock.html, as well as serving local source files
     await page.setRequestInterception(true);
     page.on('request', (request) => {
       const url = request.url();
-      if (
+      if (url.includes('/src/')) {
+        const relativePath = url.split('/src/')[1];
+        const filePath = path.join(__dirname, 'src', relativePath);
+        if (fs.existsSync(filePath)) {
+          request.respond({
+            status: 200,
+            contentType: 'application/javascript',
+            body: fs.readFileSync(filePath, 'utf8')
+          });
+        } else {
+          request.respond({ status: 404 });
+        }
+      } else if (
         url.includes('instagram.com/reels/test/') ||
         url.includes('instagram.com/stories/test/') ||
         url.includes('instagram.com/p/test')
@@ -87,7 +99,7 @@ function sleep(ms) {
     
     await page.goto('https://www.instagram.com/reels/test/', { waitUntil: 'load' });
     await page.addStyleTag({ path: path.join(__dirname, 'content.css') });
-    await page.addScriptTag({ path: path.join(__dirname, 'content.js') });
+    await page.addScriptTag({ path: path.join(__dirname, 'content.js'), type: 'module' });
 
     console.log('[TEST 1] Waiting for script injection...');
     await sleep(2000);
@@ -149,7 +161,7 @@ function sleep(ms) {
 
     await page.goto('https://www.instagram.com/stories/test/', { waitUntil: 'load' });
     await page.addStyleTag({ path: path.join(__dirname, 'content.css') });
-    await page.addScriptTag({ path: path.join(__dirname, 'content.js') });
+    await page.addScriptTag({ path: path.join(__dirname, 'content.js'), type: 'module' });
 
     console.log('[TEST 2] Waiting for script injection...');
     await sleep(2000);
@@ -266,7 +278,7 @@ function sleep(ms) {
 
     await page.goto('https://www.instagram.com/p/test/', { waitUntil: 'load' });
     await page.addStyleTag({ path: path.join(__dirname, 'content.css') });
-    await page.addScriptTag({ path: path.join(__dirname, 'content.js') });
+    await page.addScriptTag({ path: path.join(__dirname, 'content.js'), type: 'module' });
 
     console.log('[TEST 3] Waiting for script injection...');
     await sleep(2000);
@@ -343,7 +355,7 @@ function sleep(ms) {
 
     await page.goto('https://www.instagram.com/p/test-no-mute/', { waitUntil: 'load' });
     await page.addStyleTag({ path: path.join(__dirname, 'content.css') });
-    await page.addScriptTag({ path: path.join(__dirname, 'content.js') });
+    await page.addScriptTag({ path: path.join(__dirname, 'content.js'), type: 'module' });
 
     console.log('[TEST 4] Waiting for script injection...');
     await sleep(2000);
