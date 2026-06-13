@@ -3,6 +3,7 @@
   "name": "Instagram Volume Controller",
   "version": "1.0.0",
   "description": "Adds a logarithmic volume slider to all Instagram videos with volume sync across posts, reels, and stories.",
+  "type": "module",
   "permissions": [
     "storage"
   ],
@@ -12,7 +13,21 @@
         "https://*.instagram.com/*"
       ],
       "js": [
-        "content.js"
+        "src/config.js",
+        "src/styles.js",
+        "src/utils.js",
+        "src/detection.js",
+        "src/native-button.js",
+        "src/speed-menu.js",
+        "src/scrubber.js",
+        "src/sync.js",
+        "src/story-controls.js",
+        "src/story-speed.js",
+        "src/feed-controls.js",
+        "src/reels-controls.js",
+        "src/overlay-shield.js",
+        "src/video-listeners.js",
+        "src/lifecycle.js"
       ],
       "css": [
         "content.css"
