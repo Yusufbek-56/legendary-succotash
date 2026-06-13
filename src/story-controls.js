@@ -1,6 +1,6 @@
 // Stories-specific viewport click handling
 import { state, saveSettings } from './config.js';
-import { isClickInsideElement } from './utils.js';
+import { isClickInsideElement, safeClick } from './utils.js';
 import { findNativeMuteButton, isNativeButtonMuted } from './native-button.js';
 import { showSpeedMenu } from './speed-menu.js';
 
@@ -51,7 +51,7 @@ export function setupStoryViewportClick(video) {
         saveSettings();
 
         if (nativeBtn) {
-          import('./utils.js').then(m => m.safeClick(nativeBtn));
+          safeClick(nativeBtn);
         }
         return;
       } else {
@@ -61,7 +61,7 @@ export function setupStoryViewportClick(video) {
 
     const playPauseBtn = findNativePlayPauseButton(activeVideo);
     if (playPauseBtn) {
-      import('./utils.js').then(m => m.safeClick(playPauseBtn));
+      safeClick(playPauseBtn);
     } else {
       if (activeVideo.paused) {
         activeVideo.play().catch(() => { });

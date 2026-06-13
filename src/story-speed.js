@@ -1,5 +1,5 @@
 // Stories inline speed button injection
-import { state, saveSettings } from './config.js';
+import { state } from './config.js';
 import { checkIsStory } from './detection.js';
 import { enforcePlaybackRate } from './reels-controls.js';
 import { showSpeedMenu } from './speed-menu.js';
@@ -78,7 +78,7 @@ export function injectStorySpeedButton(video) {
   }
 
   video._storySpeedBtn = speedBtn;
-  import('./config.js').then(m => m.state.activeVideos.add(video));
+  state.activeVideos.add(video);
   enforcePlaybackRate(video);
 
   const toggleSpeed = (e) => {

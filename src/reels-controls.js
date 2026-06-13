@@ -1,6 +1,6 @@
 // Reels sidebar controls (speed + autoskip)
 import { state, saveSettings } from './config.js';
-import { findReelsActionBar } from './detection.js';
+import { findReelsActionBar, checkIsReel } from './detection.js';
 import { syncAllVideos, hasSpeedButtonInDOM, getNeedleRotationForSpeed } from './sync.js';
 import { restorePlayerFocus } from './utils.js';
 
@@ -46,7 +46,7 @@ export function injectExtraControls(video, cachedActionBar) {
   if (video._hasExtraControls) return;
   video._hasExtraControls = true;
 
-  import('./config.js').then(m => m.state.activeVideos.add(video));
+  state.activeVideos.add(video);
   enforcePlaybackRate(video);
 
   const actionBar = cachedActionBar || findReelsActionBar(video);
@@ -166,20 +166,18 @@ export function injectExtraControls(video, cachedActionBar) {
 
     if (state.globalAutoSkip) {
       state.lastAutoSkipTime = 0;
-      import('./config.js').then(m => {
-        m.state.activeVideos.forEach(v => {
-          v._autoSkipTriggered = false;
+      state.activeVideos.forEach(v => {
+        v._autoSkipTriggered = false;
 
-          const duration = v.duration || 0;
-          const currentTime = v.currentTime || 0;
-          const isNearEnd = duration > 0 && (duration - currentTime <= 0.5);
+        const duration = v.duration || 0;
+        const currentTime = v.currentTime || 0;
+        const isNearEnd = duration > 0 && (duration - currentTime <= 0.5);
 
-          if (v.isConnected && (v.ended || isNearEnd)) {
-            if (typeof v._oldHandleVideoEnded === 'function') {
-              v._oldHandleVideoEnded();
-            }
+        if (v.isConnected && (v.ended || isNearEnd)) {
+          if (typeof v._oldHandleVideoEnded === 'function') {
+            v._oldHandleVideoEnded();
           }
-        });
+        }
       });
     }
 
@@ -365,7 +363,3 @@ export function injectExtraControls(video, cachedActionBar) {
   video.addEventListener('ratechange', rateChangeHandler);
 }
 
-function checkIsReel(video) {
-  const path = window.location.pathname;
-  return path.includes('/reels/') || path.includes('/reel/');
-}

@@ -9,8 +9,10 @@ import { clearOverlayInterference } from './overlay-shield.js';
 import { setupVideoListeners } from './video-listeners.js';
 import { injectScrubber, updateScrubberPosition } from './scrubber.js';
 import { injectExtraControls } from './reels-controls.js';
+import { setupStoryViewportClick } from './story-controls.js';
 import { injectStorySpeedButton } from './story-speed.js';
 import { injectFeedSpeedButton } from './feed-controls.js';
+import { injectVolumeSlider } from './volume-slider.js';
 import { hasSpeedButtonInDOM, syncAllVideos } from './sync.js';
 
 injectCoreStyles();
@@ -30,8 +32,6 @@ export function scanAndInject() {
     if (style) style.remove();
     return;
   }
-
-  document.querySelectorAll('.ig-volume-slider-container').forEach(el => el.remove());
 
   if (state.lastGlobalPath !== window.location.pathname) {
     state.lastGlobalPath = window.location.pathname;
@@ -53,7 +53,7 @@ export function scanAndInject() {
     }
 
     if (checkIsStory(video)) {
-      import('./story-controls.js').then(m => m.setupStoryViewportClick(video));
+      setupStoryViewportClick(video);
     }
 
     if (!video.isConnected || (video.offsetWidth === 0 && video.offsetHeight === 0)) {
@@ -124,6 +124,7 @@ export function scanAndInject() {
       }
 
       video._hasScrubber = false;
+      video._hasVolumeSlider = false;
       video._hasExtraControls = false;
       video._hasStorySpeedBtn = false;
       video._hasFeedSpeedBtn = false;
@@ -250,6 +251,17 @@ export function scanAndInject() {
       const parent = video._scrubberContainer.parentElement;
       if (parent && parent.lastElementChild !== video._scrubberContainer) {
         parent.appendChild(video._scrubberContainer);
+      }
+    }
+
+    if (currentBtn) {
+      if (!video._hasVolumeSlider || !video._sliderContainer || !video._sliderContainer.isConnected) {
+        if (video._sliderContainer) {
+          video._sliderContainer.remove();
+          video._sliderContainer = null;
+        }
+        video._hasVolumeSlider = false;
+        injectVolumeSlider(video, currentBtn);
       }
     }
 

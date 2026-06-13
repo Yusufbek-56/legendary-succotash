@@ -1,5 +1,5 @@
 // Feed post speed button injection
-import { state, saveSettings } from './config.js';
+import { state } from './config.js';
 import { findCommonAncestor } from './utils.js';
 import { checkIsReel, checkIsStory } from './detection.js';
 import { enforcePlaybackRate } from './reels-controls.js';
@@ -87,7 +87,7 @@ export function injectFeedSpeedButton(video, nativeMuteBtn) {
   video._updateFeedSpeedPos = updateFeedSpeedPos;
 
   video._feedSpeedBtn = speedBtn;
-  import('./config.js').then(m => m.state.activeVideos.add(video));
+  state.activeVideos.add(video);
   enforcePlaybackRate(video);
 
   const toggleSpeed = (e) => {
